@@ -4,7 +4,7 @@
 
 This project uses [`uv`](https://docs.astral.sh/uv/) for dependency management.
 
-If you don't have it installed, follow the [official installation guide](https://docs.astral.sh/uv/).
+If you don't have it installed, follow the [official installation guide](https://docs.astral.sh/uv/getting-started/installation/).
 
 ## Installation
 
