@@ -4,7 +4,7 @@ networks:
 
 services:
   caldera:
-    image: mitre/caldera:latest
+    image: ghcr.io/mitre/caldera:5.2.0
     container_name: caldera
     networks:
       - ransomsim
@@ -29,7 +29,16 @@ services:
     restart: on-failure
     command: >
       sh -c "apk add --no-cache curl &&
-      while ! curl -s -X POST -H 'file:sandcat.go' -H 'platform:linux' http://caldera:8888/file/download > sandcat.go || [ ! -s sandcat.go ]; do echo 'Waiting for Caldera...'; sleep 5; done &&
+      while true; do
+        HTTP_STATUS=$$(curl -s -o sandcat.go -w '%{http_code}' -X POST -H 'file:sandcat.go' -H 'platform:linux' http://caldera:8888/file/download);
+        if [ \"$$HTTP_STATUS\" = '200' ] && [ -s sandcat.go ]; then
+          echo 'Agent downloaded successfully.';
+          break;
+        fi;
+        echo \"Waiting for Caldera... (status: $$HTTP_STATUS)\";
+        rm -f sandcat.go;
+        sleep 5;
+      done &&
       chmod +x sandcat.go &&
       ./sandcat.go -server http://caldera:8888 -group red_team"
 
