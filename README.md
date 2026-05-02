@@ -35,7 +35,7 @@ cd infra
 docker compose up
 ```
 
-    **Note**: On first boot, Caldera takes 1–3 minutes to compile the sandcat.go agent. The caldera_agent container will print Waiting for Caldera... until the agent binary is available. This is expected behaviour.
+**Note**: On first boot, Caldera takes 1–3 minutes to compile the sandcat.go agent. The caldera_agent container will print Waiting for Caldera... until the agent binary is available. This is expected behaviour.
 
 3. Stop the stack
 
