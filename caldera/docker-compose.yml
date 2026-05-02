@@ -10,12 +10,21 @@ services:
     volumes:
       - ./adversaries:/usr/src/app/data/adversaries
       - ./abilities:/usr/src/app/data/abilities
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 60s  # Caldera è lento ad avviarsi
 
   agent:
     image: alpine:latest
     container_name: caldera_agent_standalone
     depends_on:
-      - caldera
+      caldera:
+        condition: service_healthy
+      api:
+        condition: service_started  
     command: >
       sh -c "apk add --no-cache curl &&
       sleep 15 &&
