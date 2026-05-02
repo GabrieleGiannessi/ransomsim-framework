@@ -13,10 +13,10 @@ interface LogEntry {
 
 export const BlueTeamDashboard: React.FC = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [simStatus, setSimStatus] = useState<string>('idle');
-  const [calderaState, setCalderaState] = useState<string>('idle');
+  const [simStatus, setSimStatus] = useState('idle');
+  const [calderaState, setCalderaState] = useState('idle');
   const wsRef = useRef<WebSocket | null>(null);
-  const logsEndRef = useRef<HTMLDivElement>(null);
+  const logsEndRef = useRef<HTMLDivElement | null>(null);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -32,7 +32,6 @@ export const BlueTeamDashboard: React.FC = () => {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
-        // Custom message format or loguru JSON
         if (data.type === 'status') {
           setSimStatus(data.data);
         } else if (data.text) {
@@ -43,6 +42,10 @@ export const BlueTeamDashboard: React.FC = () => {
       }
     };
 
+    ws.onerror = (error) => {
+      console.error('WebSocket error', error);
+    };
+
     return () => {
       ws.close();
     };
@@ -51,7 +54,7 @@ export const BlueTeamDashboard: React.FC = () => {
   // Poll Caldera Status
   useEffect(() => {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-    
+
     const fetchStatus = async () => {
       try {
         const response = await fetch(`${apiUrl}/sim/status`);
@@ -61,159 +64,163 @@ export const BlueTeamDashboard: React.FC = () => {
           setCalderaState(data.caldera_state || 'idle');
         }
       } catch (error) {
-        console.error("Status polling failed", error);
+        console.error('Status polling failed', error);
       }
     };
 
-    // Initial fetch
     fetchStatus();
-    // Poll every 3 seconds
     const intervalId = setInterval(fetchStatus, 3000);
     return () => clearInterval(intervalId);
   }, []);
 
   const handleStartAttack = async () => {
+    setSimStatus('running');
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     try {
       await fetch(`${apiUrl}/sim/start-attack`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          adversary_id: "ransomware-healthcare-profile",
-          group: "red_team"
+          adversary_id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+          group: 'red_team'
         })
       });
-      // The status will update via websocket or polling
     } catch (e) {
-      console.error("Failed to start attack", e);
+      setSimStatus('idle');
+      console.error('Failed to start attack', e);
     }
   };
 
   const handleStopAttack = async () => {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
     try {
-      await fetch(`${apiUrl}/sim/stop-attack`, {
-        method: 'POST'
-      });
+      await fetch(`${apiUrl}/sim/stop-attack`, { method: 'POST' });
     } catch (e) {
-      console.error("Failed to stop attack", e);
+      console.error('Failed to stop attack', e);
     }
   };
 
   const getStatusColor = () => {
-    if (simStatus === 'running') return 'danger'; // Red
-    if (calderaState !== 'idle' && calderaState !== 'finished' && calderaState !== 'stopped') return 'warning'; // Yellow
-    return 'success'; // Green
+    if (simStatus === 'running') return 'danger';
+    if (
+      calderaState !== 'idle' &&
+      calderaState !== 'finished' &&
+      calderaState !== 'stopped'
+    ) return 'warning';
+    return 'success';
   };
 
   return (
-    <div className="bg-dark min-vh-100 pb-5 text-light">
+    <Container fluid className="p-4" style={{ backgroundColor: '#0d1117', minHeight: '100vh', color: '#c9d1d9' }}>
+
       {/* Top Navbar Area */}
-      <div className="bg-secondary bg-gradient text-white py-3 mb-4 border-bottom border-secondary">
-        <Container>
-          <Row className="align-items-center">
-            <Col>
-              <h2 className="fw-bold mb-0 d-flex align-items-center">
-                <FiShield className="me-2 text-info" />
-                SOC Blue Team Dashboard
-              </h2>
-              <p className="text-white-50 mb-0">Ransomware Incident Response Center</p>
-            </Col>
-            <Col xs="auto">
-              <Button variant="outline-light" onClick={() => window.location.href = '/'}>
-                &larr; Back to Main Dashboard
-              </Button>
-            </Col>
-          </Row>
-        </Container>
-      </div>
+      <Row className="mb-4 align-items-center">
+        <Col>
+          <h2 className="text-white mb-0">
+            <FiShield className="me-2 text-info" />
+            SOC Blue Team Dashboard
+          </h2>
+          <p className="text-muted mb-0">Ransomware Incident Response Center</p>
+        </Col>
+        <Col xs="auto">
+          <Button variant="outline-secondary" size="sm" onClick={() => window.location.href = '/'}>
+            ← Back to Main Dashboard
+          </Button>
+        </Col>
+      </Row>
 
-      <Container>
-        <Row className="mb-4 g-4">
-          <Col md={4}>
-            <Card className="border-0 shadow-sm rounded-4 h-100 bg-black text-light border border-secondary">
-              <Card.Body className="p-4 d-flex align-items-center">
-                <div className={`bg-${getStatusColor()} bg-opacity-25 p-3 rounded-circle text-${getStatusColor()} me-4`}>
-                  <FiActivity size={28} />
-                </div>
-                <div>
-                  <p className="text-muted mb-1 fw-medium text-uppercase small">System Status</p>
-                  <h3 className={`mb-0 fw-bold text-${getStatusColor()} text-uppercase`}>
-                    {simStatus === 'running' ? 'Under Attack' : 'Secure'}
-                  </h3>
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
-          <Col md={8}>
-            <Card className="border-0 shadow-sm rounded-4 h-100 bg-black text-light border border-secondary">
-              <Card.Body className="p-4 d-flex align-items-center justify-content-between">
-                <div>
-                  <h5 className="mb-2 fw-bold d-flex align-items-center">
-                    <FiAlertTriangle className="me-2 text-warning" />
-                    Simulation Controls
-                  </h5>
-                  <p className="mb-0 text-white-50 small">Caldera State: <Badge bg="secondary">{calderaState}</Badge></p>
-                </div>
-                <div className="d-flex gap-2">
-                  <Button 
-                    variant="danger" 
-                    size="lg" 
-                    onClick={handleStartAttack} 
-                    disabled={simStatus === 'running'}
-                  >
-                    Simulate Attack
-                  </Button>
-                  <Button 
-                    variant="success" 
-                    size="lg" 
-                    onClick={handleStopAttack}
-                    className="d-flex align-items-center"
-                    disabled={simStatus !== 'running'}
-                  >
-                    <FiXCircle className="me-2" />
-                    Block Attack
-                  </Button>
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
+      <Row className="mb-4">
+        {/* System Status */}
+        <Col md={4}>
+          <Card bg="dark" border="secondary" className="h-100">
+            <Card.Body>
+              <Card.Title className="text-white">
+                <FiActivity className="me-2" />
+                System Status
+              </Card.Title>
+              <Badge bg={getStatusColor()} className="fs-6 p-2">
+                {simStatus === 'running' ? 'Under Attack' : 'Secure'}
+              </Badge>
+            </Card.Body>
+          </Card>
+        </Col>
 
-        {/* Live Logs */}
-        <Row>
-          <Col>
-            <Card className="border-0 shadow-sm rounded-4 bg-black text-light border border-secondary">
-              <Card.Header className="bg-dark border-secondary py-3">
-                <h5 className="mb-0 fw-bold font-monospace">Live FastAPI Server Logs</h5>
-              </Card.Header>
-              <Card.Body className="p-0">
-                <div 
-                  className="font-monospace p-3 overflow-auto" 
-                  style={{ height: '500px', backgroundColor: '#0c0c0c', fontSize: '0.85rem' }}
+        {/* Simulation Controls */}
+        <Col md={8}>
+          <Card bg="dark" border="secondary" className="h-100">
+            <Card.Body>
+              <Card.Title className="text-white">
+                <FiAlertTriangle className="me-2" />
+                Simulation Controls
+              </Card.Title>
+              <p className="text-muted mb-3">Caldera State: <strong className="text-white">{calderaState}</strong></p>
+              <div className="d-flex gap-2">
+                <Button
+                  variant="danger"
+                  onClick={handleStartAttack}
+                  disabled={simStatus === 'running'}
                 >
-                  {logs.length === 0 ? (
-                    <div className="text-muted text-center mt-5">Waiting for logs...</div>
-                  ) : (
-                    logs.map((log, i) => (
-                      <div key={i} className="mb-1 border-bottom border-dark pb-1">
-                        <span className="text-secondary">[{log.record?.time?.repr || new Date().toISOString()}]</span>{' '}
-                        <span className={`fw-bold text-${log.record?.level?.name === 'ERROR' ? 'danger' : 'info'}`}>
-                          {log.record?.level?.name || 'INFO'}
-                        </span>:{' '}
-                        <span className={log.record?.level?.name === 'ERROR' ? 'text-danger' : 'text-light'}>
-                          {log.record?.message || log.text}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                  <div ref={logsEndRef} />
-                </div>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
-      </Container>
-    </div>
+                  Simulate Attack
+                </Button>
+                <Button
+                  variant="success"
+                  onClick={handleStopAttack}
+                  disabled={simStatus !== 'running'}
+                >
+                  <FiXCircle className="me-1" />
+                  Block Attack
+                </Button>
+              </div>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Live Logs */}
+      <Row>
+        <Col>
+          <Card bg="dark" border="secondary">
+            <Card.Body>
+              <Card.Title className="text-white">
+                <FiActivity className="me-2" />
+                Live FastAPI Server Logs
+              </Card.Title>
+              <div
+                style={{
+                  backgroundColor: '#010409',
+                  borderRadius: '6px',
+                  padding: '1rem',
+                  height: '400px',
+                  overflowY: 'auto',
+                  fontFamily: 'monospace',
+                  fontSize: '0.85rem'
+                }}
+              >
+                {logs.length === 0 ? (
+                  <span className="text-muted">Waiting for logs...</span>
+                ) : (
+                  logs.map((log, i) => (
+                    <div key={i} className="mb-1">
+                      <span className="text-muted">
+                        [{log.record?.time?.repr || new Date().toISOString()}]
+                      </span>{' '}
+                      <Badge
+                        bg={log.record?.level?.name === 'ERROR' ? 'danger' : log.record?.level?.name === 'WARNING' ? 'warning' : 'info'}
+                        className="me-1"
+                      >
+                        {log.record?.level?.name || 'INFO'}
+                      </Badge>
+                      <span className="text-light">{log.record?.message || log.text}</span>
+                    </div>
+                  ))
+                )}
+                <div ref={logsEndRef} />
+              </div>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+
+    </Container>
   );
 };
