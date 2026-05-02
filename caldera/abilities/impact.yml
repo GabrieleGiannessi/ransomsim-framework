@@ -1,0 +1,14 @@
+- id: "impact-sim-encrypt"
+  name: "Simulate Data Encryption"
+  description: "Simulates the encryption of collected healthcare data and removal of original files."
+  tactic: "impact"
+  technique:
+    attack_id: "T1486"
+    name: "Data Encrypted for Impact"
+  platforms:
+    linux:
+      sh:
+        command: |
+          echo "Simulating Data Encryption..."
+          rm -f db_dump.json
+          echo "Data encrypted and originals removed. Ransom note dropped."

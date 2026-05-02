@@ -1,0 +1,66 @@
+networks:
+  ransomsim:
+    driver: bridge
+
+services:
+  caldera:
+    image: mitre/caldera:latest
+    container_name: caldera
+    networks:
+      - ransomsim
+    ports:
+      - "8888:8888"
+      - "8443:8443"
+    environment:
+      - WORKSPACE=/usr/src/app
+    volumes:
+      - ../caldera/adversaries:/usr/src/app/data/adversaries
+      - ../caldera/abilities:/usr/src/app/data/abilities
+      - ../caldera/conf/local.yml:/usr/src/app/conf/local.yml
+
+  agent:
+    image: alpine:latest
+    container_name: caldera_agent
+    networks:
+      - ransomsim
+    depends_on:
+      - caldera
+      - api
+    restart: on-failure
+    command: >
+      sh -c "apk add --no-cache curl &&
+      while ! curl -s -X POST -H 'file:sandcat.go' -H 'platform:linux' http://caldera:8888/file/download > sandcat.go || [ ! -s sandcat.go ]; do echo 'Waiting for Caldera...'; sleep 5; done &&
+      chmod +x sandcat.go &&
+      ./sandcat.go -server http://caldera:8888 -group red_team"
+
+  api:
+    image: ghcr.io/astral-sh/uv:python3.10-bookworm-slim
+    container_name: api
+    networks:
+      - ransomsim
+    working_dir: /app
+    ports:
+      - "8000:8000"
+    environment:
+      - CALDERA_URL=http://caldera:8888
+      - CALDERA_API_KEY=ADMIN123
+    volumes:
+      - ../:/app
+    command: >
+      sh -c "uv sync &&
+      uv run uvicorn api.main:app --host 0.0.0.0 --port 8000"
+
+  frontend:
+    image: node:20-alpine
+    container_name: frontend
+    networks:
+      - ransomsim
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    volumes:
+      - ../frontend:/app
+    command: >
+      sh -c "npm install && npm run dev -- --host 0.0.0.0"

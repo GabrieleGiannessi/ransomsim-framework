@@ -1,0 +1,14 @@
+- id: "collection-dump-db"
+  name: "Dump Healthcare Database"
+  description: "Exfiltrates sensitive healthcare data by dumping the database contents."
+  tactic: "collection"
+  technique:
+    attack_id: "T1560"
+    name: "Archive Collected Data"
+  platforms:
+    linux:
+      sh:
+        command: |
+          echo "Simulating Database Dump..."
+          curl -s http://api:8000/patients | head -n 20 > db_dump.json
+          echo "Database dumped successfully."
