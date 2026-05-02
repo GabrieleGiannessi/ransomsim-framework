@@ -2,7 +2,9 @@
 
 A research framework for simulating ransomware attacks against healthcare systems. It combines a MITRE Caldera C2 server, a FastAPI backend with a simulated healthcare database, and a React/Vite frontend for orchestrating and monitoring attack simulations in real time.
 
-    ⚠️ For research and educational use only. Do not deploy in production or against real systems.
+## Disclaimer
+
+⚠️ For research and educational use only. Do not deploy in production or against real systems.
 
 ## Requirements
 
