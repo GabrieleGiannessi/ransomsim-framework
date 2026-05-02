@@ -1,0 +1,24 @@
+services:
+  caldera:
+    image: mitre/caldera:latest
+    container_name: caldera
+    ports:
+      - "8888:8888"
+      - "8443:8443"
+    environment:
+      - WORKSPACE=/usr/src/app
+    volumes:
+      - ./adversaries:/usr/src/app/data/adversaries
+      - ./abilities:/usr/src/app/data/abilities
+
+  agent:
+    image: alpine:latest
+    container_name: caldera_agent_standalone
+    depends_on:
+      - caldera
+    command: >
+      sh -c "apk add --no-cache curl &&
+      sleep 15 &&
+      curl -s -X POST -H 'file:sandcat.go' -H 'platform:linux' http://caldera:8888/file/download > sandcat.go &&
+      chmod +x sandcat.go &&
+      ./sandcat.go -server http://caldera:8888 -group red_team"

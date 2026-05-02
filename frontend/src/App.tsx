@@ -1,9 +1,24 @@
-import { Dashboard } from './components/Dashboard'
+import { useState, useEffect } from 'react';
+import { Dashboard } from './components/Dashboard';
+import { BlueTeamDashboard } from './components/BlueTeamDashboard';
 
 const App = () => {
-  return (
-    <Dashboard />
-  )
-}
+  const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
-export default App
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setCurrentPath(window.location.pathname);
+    };
+
+    window.addEventListener('popstate', handleLocationChange);
+    return () => window.removeEventListener('popstate', handleLocationChange);
+  }, []);
+
+  return (
+    <>
+      {currentPath === '/blue-team' ? <BlueTeamDashboard /> : <Dashboard />}
+    </>
+  );
+};
+
+export default App;

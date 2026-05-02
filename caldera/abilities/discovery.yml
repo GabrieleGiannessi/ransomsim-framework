@@ -1,0 +1,14 @@
+- id: "discovery-enum-api"
+  name: "Enumerate API Endpoints"
+  description: "Discovers available API endpoints on the healthcare system."
+  tactic: "discovery"
+  technique:
+    attack_id: "T1046"
+    name: "Network Service Discovery"
+  platforms:
+    linux:
+      sh:
+        command: |
+          echo "Simulating API Enumeration..."
+          curl -s -o /dev/null -w "%{http_code}" http://api:8000/docs
+          echo "Enumeration complete."

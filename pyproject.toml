@@ -12,7 +12,9 @@ dependencies = [
     "fastapi==0.136.0",
     "greenlet==3.4.0",
     "h11==0.16.0",
+    "httpx>=0.28.1",
     "idna==3.13",
+    "loguru>=0.7.3",
     "numpy==2.4.4",
     "pandas==3.0.2",
     "pydantic==2.13.3",
@@ -24,4 +26,5 @@ dependencies = [
     "typing-extensions==4.15.0",
     "typing-inspection==0.4.2",
     "uvicorn==0.46.0",
+    "websockets>=16.0",
 ]
