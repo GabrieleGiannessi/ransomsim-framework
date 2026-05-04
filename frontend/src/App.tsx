@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { Dashboard } from './components/Dashboard';
-import { BlueTeamDashboard } from './components/BlueTeamDashboard';
+import { Dashboard } from './blue/Dashboard';
+import { BlueTeamDashboard } from './blue/BlueTeamDashboard';
 import { RedDashboard } from './red/Dashboard';
 
 const App = () => {

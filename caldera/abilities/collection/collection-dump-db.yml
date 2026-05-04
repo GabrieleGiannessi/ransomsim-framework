@@ -9,6 +9,11 @@
     linux:
       sh:
         command: |
-          echo "Simulating Database Dump..."
-          curl -s http://api:8000/patients | head -n 20 > db_dump.json
-          echo "Database dumped successfully."
+          OUTDIR=/tmp/recon
+          mkdir -p $OUTDIR
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          curl -s http://api:8000/patients -o $OUTDIR/db_raw_$TIMESTAMP.json
+          # Crea anche un archivio compresso (realizza davvero T1560)
+          tar czf $OUTDIR/db_dump_$TIMESTAMP.tar.gz -C $OUTDIR db_raw_$TIMESTAMP.json
+          echo "Dump saved to $OUTDIR/db_dump_$TIMESTAMP.tar.gz"
+          ls -lh $OUTDIR/
