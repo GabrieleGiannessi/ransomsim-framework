@@ -1,0 +1,19 @@
+networks:
+  ransomsim_red:
+    driver: bridge
+
+services:
+  caldera:
+    image: ghcr.io/mitre/caldera:5.2.0
+    container_name: caldera_red
+    networks:
+      - ransomsim_red
+    ports:
+      - "8888:8888"
+      - "8443:8443"
+    environment:
+      - WORKSPACE=/usr/src/app
+    volumes:
+      - ../caldera/adversaries:/usr/src/app/data/adversaries
+      - ../caldera/abilities:/usr/src/app/data/abilities
+      - ../caldera/conf/local.yml:/usr/src/app/conf/local.yml
