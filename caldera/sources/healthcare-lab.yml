@@ -1,0 +1,9 @@
+id: healthcare-lab
+name: Healthcare Lab Facts
+facts:
+  - trait: api.host
+    value: api
+  - trait: api.port
+    value: 8000
+  - trait: api.scheme
+    value: http

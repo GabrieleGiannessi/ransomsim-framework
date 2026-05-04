@@ -16,4 +16,5 @@ services:
     volumes:
       - ../caldera/adversaries:/usr/src/app/data/adversaries
       - ../caldera/abilities:/usr/src/app/data/abilities
+      - ../caldera/sources:/usr/src/app/data/sources
       - ../caldera/conf/local.yml:/usr/src/app/conf/local.yml

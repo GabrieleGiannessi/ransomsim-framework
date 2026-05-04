@@ -6,6 +6,7 @@ tags:
   - ransomware
   - healthcare
   - research
+fact_source: healthcare-lab
 atomic_ordering:
   - discovery-enum-api
   - collection-dump-db
