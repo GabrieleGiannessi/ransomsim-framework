@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Container, Row, Col, Card, Button, Badge } from 'react-bootstrap';
 import { FiShield, FiAlertTriangle, FiActivity, FiXCircle } from 'react-icons/fi';
+import { API_BASE_URL, WS_BASE_URL } from '../api/config';
 
 interface LogEntry {
   text: string;
@@ -25,8 +26,7 @@ export const BlueTeamDashboard: React.FC = () => {
 
   // WebSocket Connection
   useEffect(() => {
-    const wsUrl = import.meta.env.VITE_API_URL?.replace('http', 'ws') || 'ws://localhost:8000';
-    const ws = new WebSocket(`${wsUrl}/sim/ws/logs`);
+    const ws = new WebSocket(`${WS_BASE_URL}/sim/ws/logs`);
     wsRef.current = ws;
 
     ws.onmessage = (event) => {
@@ -53,7 +53,7 @@ export const BlueTeamDashboard: React.FC = () => {
 
   // Poll Caldera Status
   useEffect(() => {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const apiUrl = API_BASE_URL;
 
     const fetchStatus = async () => {
       try {
@@ -75,7 +75,7 @@ export const BlueTeamDashboard: React.FC = () => {
 
   const handleStartAttack = async () => {
     setSimStatus('running');
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const apiUrl = API_BASE_URL;
     try {
       await fetch(`${apiUrl}/sim/start-attack`, {
         method: 'POST',
@@ -92,7 +92,7 @@ export const BlueTeamDashboard: React.FC = () => {
   };
 
   const handleStopAttack = async () => {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const apiUrl = API_BASE_URL;
     try {
       await fetch(`${apiUrl}/sim/stop-attack`, { method: 'POST' });
     } catch (e) {

@@ -3,7 +3,8 @@ import { Container, Row, Col, Navbar, Button } from 'react-bootstrap';
 import { AttackLauncher } from './AttackLauncher';
 import { AttackTimeline } from './AttackTimeline';
 import { FiTerminal } from 'react-icons/fi';
-import './red.css'; // We will add some custom css for aesthetics
+import { API_BASE_URL } from '../api/config';
+import './red.css';
 
 export const RedDashboard: React.FC = () => {
   const [simStatus, setSimStatus] = useState('idle');
@@ -12,7 +13,7 @@ export const RedDashboard: React.FC = () => {
 
   // Poll Backend Status
   useEffect(() => {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const apiUrl = API_BASE_URL;
 
     const fetchStatus = async () => {
       try {
@@ -37,7 +38,7 @@ export const RedDashboard: React.FC = () => {
 
   const handleLaunchAttack = async (adversaryId: string, group: string) => {
     setSimStatus('running');
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const apiUrl = API_BASE_URL;
     try {
       await fetch(`${apiUrl}/sim/start-attack`, {
         method: 'POST',

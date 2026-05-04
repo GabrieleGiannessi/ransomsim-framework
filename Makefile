@@ -19,16 +19,16 @@ dev:
 
 up-red:
 	@echo "Avvio Red Team (Caldera)..."
-	docker compose -f infra/docker-compose.red.yaml up -d
+	docker compose -p ransomsim-red -f infra/docker-compose.red.yaml up -d --remove-orphans
 
 down-red:
 	@echo "Arresto Red Team..."
-	docker compose -f infra/docker-compose.red.yaml down
+	docker compose -p ransomsim-red -f infra/docker-compose.red.yaml down
 
 up-blue:
 	@echo "Avvio Blue Team (API, Frontend, Agent)..."
-	docker compose -f infra/docker-compose.blue.yaml up -d
+	docker compose -p ransomsim-blue -f infra/docker-compose.blue.yaml up -d --remove-orphans
 
 down-blue:
 	@echo "Arresto Blue Team..."
-	docker compose -f infra/docker-compose.blue.yaml down
+	docker compose -p ransomsim-blue -f infra/docker-compose.blue.yaml down

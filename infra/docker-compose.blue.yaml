@@ -35,6 +35,10 @@ services:
   api:
     image: ghcr.io/astral-sh/uv:python3.10-bookworm-slim
     container_name: api_blue
+    extra_hosts:
+      # Necessario in WSL2: mappa host.docker.internal all'host reale,
+      # usato come fallback se CALDERA_URL non è impostato nel .env.
+      - "host.docker.internal:host-gateway"
     networks:
       - ransomsim_blue
     working_dir: /app
