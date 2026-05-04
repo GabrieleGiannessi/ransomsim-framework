@@ -2,15 +2,31 @@ import React, { useState } from 'react';
 import { Card, Button, Form, ProgressBar, Badge } from 'react-bootstrap';
 import { FiCrosshair, FiPlay, FiCpu } from 'react-icons/fi';
 
+interface Adversary {
+  adversary_id: string;
+  name: string;
+  description: string;
+}
+
 interface AttackLauncherProps {
   onLaunch: (adversaryId: string, group: string) => void;
   status: string;
   calderaState: string;
+  adversaries: Adversary[];
+  error: string | null;
 }
 
-export const AttackLauncher: React.FC<AttackLauncherProps> = ({ onLaunch, status, calderaState }) => {
-  const [adversaryId, setAdversaryId] = useState('a1b2c3d4-e5f6-7890-abcd-ef1234567890');
+export const AttackLauncher: React.FC<AttackLauncherProps> = ({ onLaunch, status, calderaState, adversaries, error }) => {
+  const [adversaryId, setAdversaryId] = useState('');
   const [group, setGroup] = useState('red_team');
+
+  // Auto-select 'Healthcare Ransomware' if available, otherwise first option
+  React.useEffect(() => {
+    if (!adversaryId && adversaries.length > 0) {
+      const target = adversaries.find(a => a.name.toLowerCase() === 'healthcare ransomware') || adversaries[0];
+      setAdversaryId(target.adversary_id);
+    }
+  }, [adversaries, adversaryId]);
 
   const isRunning = status === 'running' || calderaState === 'running';
 
@@ -43,13 +59,36 @@ export const AttackLauncher: React.FC<AttackLauncherProps> = ({ onLaunch, status
             <Form.Select 
               value={adversaryId}
               onChange={(e) => setAdversaryId(e.target.value)}
-              disabled={isRunning}
+              disabled={isRunning || adversaries.length === 0}
               className="bg-dark text-white border-secondary shadow-none custom-select"
             >
-              <option value="a1b2c3d4-e5f6-7890-abcd-ef1234567890">Ransomware: Data Dump & Encrypt</option>
-              <option value="discovery">Discovery & Lateral Movement</option>
+              {adversaries.length === 0 ? (
+                <option value="">Loading profiles...</option>
+              ) : (
+                adversaries.map(adv => (
+                  <option 
+                    key={adv.adversary_id} 
+                    value={adv.adversary_id}
+                    disabled={adv.name.toLowerCase() !== 'healthcare ransomware'}
+                  >
+                    {adv.name} {adv.name.toLowerCase() !== 'healthcare ransomware' ? ' (Locked)' : ''}
+                  </option>
+                ))
+              )}
             </Form.Select>
+            {adversaries.length > 0 && adversaryId && (
+              <Form.Text className="text-white small mt-2 d-block">
+                {adversaries.find(a => a.adversary_id === adversaryId)?.description}
+              </Form.Text>
+            )}
           </Form.Group>
+
+          {error && (
+            <div className="alert alert-danger py-2 px-3 small border-0 mb-4 bg-danger bg-opacity-10 text-danger">
+              <FiCpu className="me-2" />
+              <strong>Validation Error:</strong> {error}
+            </div>
+          )}
 
           <div className="d-grid mt-5">
             <Button 

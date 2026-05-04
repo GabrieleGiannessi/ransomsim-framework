@@ -1,0 +1,7 @@
+id: 948c30fb-4194-44b3-8671-e3fd462b5a46
+name: Ransomware Simulation - a1b2c3d4-e5f6-7890-abcd-ef1234567890
+facts:
+- trait: host.file.path
+  value: /tmp/recon/db_dump_20260504_142107.tar.gz
+  score: 1
+relationships: []

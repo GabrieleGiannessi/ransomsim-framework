@@ -10,6 +10,8 @@ export const RedDashboard: React.FC = () => {
   const [simStatus, setSimStatus] = useState('idle');
   const [calderaState, setCalderaState] = useState('idle');
   const [chain, setChain] = useState([]);
+  const [adversaries, setAdversaries] = useState([]);
+  const [error, setError] = useState<string | null>(null);
 
   // Poll Backend Status
   useEffect(() => {
@@ -31,7 +33,20 @@ export const RedDashboard: React.FC = () => {
       }
     };
 
+    const fetchAdversaries = async () => {
+      try {
+        const response = await fetch(`${apiUrl}/sim/adversaries`);
+        if (response.ok) {
+          const data = await response.json();
+          setAdversaries(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch adversaries', error);
+      }
+    };
+
     fetchStatus();
+    fetchAdversaries();
     const intervalId = setInterval(fetchStatus, 3000);
     return () => clearInterval(intervalId);
   }, []);
@@ -40,7 +55,8 @@ export const RedDashboard: React.FC = () => {
     setSimStatus('running');
     const apiUrl = API_BASE_URL;
     try {
-      await fetch(`${apiUrl}/sim/start-attack`, {
+      setError(null);
+      const response = await fetch(`${apiUrl}/sim/start-attack`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -48,8 +64,14 @@ export const RedDashboard: React.FC = () => {
           group: group
         })
       });
+      const data = await response.json();
+      if (data.status === 'error') {
+        setError(data.message);
+        setSimStatus('idle');
+      }
     } catch (e) {
       setSimStatus('idle');
+      setError('Network error: failed to connect to API');
       console.error('Failed to start attack', e);
     }
   };
@@ -76,7 +98,9 @@ export const RedDashboard: React.FC = () => {
             <AttackLauncher 
               onLaunch={handleLaunchAttack} 
               status={simStatus} 
-              calderaState={calderaState} 
+              calderaState={calderaState}
+              adversaries={adversaries}
+              error={error}
             />
           </Col>
           <Col lg={8}>

