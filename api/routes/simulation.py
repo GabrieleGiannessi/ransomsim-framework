@@ -71,9 +71,10 @@ async def start_attack(req: StartAttackRequest):
     }
 
     payload = {
-        "name": "Ransomware Simulation",
+        "name": f"Ransomware Simulation - {req.adversary_id}",
         "adversary": {"adversary_id": req.adversary_id},  
         "group": req.group,
+        "source": {"id": "healthcare-lab"},
         "planner": {"id": "c0e4cdd2-132d-4402-861d-72013f9f74a0"},
         "state": "running"
     }
@@ -164,6 +165,26 @@ async def get_status():
         logger.error(f"Failed to poll Caldera status: {e}")
         return {"status": sim_state.status, "error": str(e)}
 
+
+@router.get("/adversaries")
+async def get_adversaries():
+    """Fetch available adversary profiles from Caldera."""
+    headers = {
+        "KEY": CALDERA_API_KEY,
+        "Content-Type": "application/json"
+    }
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.get(
+                f"{CALDERA_URL}/api/v2/adversaries",
+                headers=headers,
+                timeout=5.0
+            )
+            res.raise_for_status()
+            return res.json()
+    except Exception as e:
+        logger.error(f"Failed to fetch adversaries: {e}")
+        return []
 
 @router.websocket("/ws/logs")
 async def websocket_logs(websocket: WebSocket):

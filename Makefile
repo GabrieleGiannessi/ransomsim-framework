@@ -15,8 +15,7 @@ dev:
 	(uv run uvicorn api.main:app --reload) & \
 	(cd frontend && npm run dev) ; wait
 
-# --- Docker Compose Commands ---
-
+# Docker Compose Commands
 up-red:
 	@echo "Avvio Red Team (Caldera)..."
 	docker compose -p ransomsim-red -f infra/docker-compose.red.yaml up -d --remove-orphans
@@ -32,3 +31,8 @@ up-blue:
 down-blue:
 	@echo "Arresto Blue Team..."
 	docker compose -p ransomsim-blue -f infra/docker-compose.blue.yaml down
+
+reset-blue: down-blue
+	@echo "Resetting Healthcare Database..."
+	rm -f healthcare.db
+	$(MAKE) up-blue

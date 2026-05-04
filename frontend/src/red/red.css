@@ -44,6 +44,22 @@
   }
 }
 
+.pulse-red {
+  animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-red {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 76, 76, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 76, 76, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 76, 76, 0);
+  }
+}
+
 .timeline-container {
   padding-bottom: 2rem;
 }

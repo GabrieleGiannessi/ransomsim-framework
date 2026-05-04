@@ -17,8 +17,10 @@ services:
       # L'IP della macchina Red Team deve essere passato tramite variabile d'ambiente.
       # Esempio: CALDERA_URL=http://192.168.1.100:8888 docker-compose -f docker-compose.blue.yaml up -d
       - CALDERA_URL=${CALDERA_URL:-http://host.docker.internal:8888}
+    volumes:
+      - ../:/app
     command: >
-      sh -c "apk add --no-cache curl &&
+      sh -c "apk add --no-cache curl openssl &&
       while true; do
         HTTP_STATUS=$$(curl -s -o sandcat.go -w '%{http_code}' -X POST -H 'file:sandcat.go' -H 'platform:linux' $${CALDERA_URL}/file/download);
         if [ \"$$HTTP_STATUS\" = '200' ] && [ -s sandcat.go ]; then
@@ -36,8 +38,6 @@ services:
     image: ghcr.io/astral-sh/uv:python3.10-bookworm-slim
     container_name: api_blue
     extra_hosts:
-      # Necessario in WSL2: mappa host.docker.internal all'host reale,
-      # usato come fallback se CALDERA_URL non è impostato nel .env.
       - "host.docker.internal:host-gateway"
     networks:
       - ransomsim_blue
@@ -62,10 +62,6 @@ services:
     ports:
       - "5173:5173"
     environment:
-      # Se il Red Team accede a questa interfaccia dal proprio browser, VITE_API_URL
-      # deve essere l'IP della macchina Blue Team e non localhost, altrimenti 
-      # il browser del Red Team cercherà l'API sul proprio localhost!
-      # Esempio: VITE_API_URL=http://<BLUE_TEAM_IP>:8000
       - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
     volumes:
       - ../frontend:/app
