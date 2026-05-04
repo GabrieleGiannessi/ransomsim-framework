@@ -1,23 +1,17 @@
-import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Dashboard } from './components/Dashboard';
 import { BlueTeamDashboard } from './components/BlueTeamDashboard';
+import { RedDashboard } from './red/Dashboard';
 
 const App = () => {
-  const [currentPath, setCurrentPath] = useState(window.location.pathname);
-
-  useEffect(() => {
-    const handleLocationChange = () => {
-      setCurrentPath(window.location.pathname);
-    };
-
-    window.addEventListener('popstate', handleLocationChange);
-    return () => window.removeEventListener('popstate', handleLocationChange);
-  }, []);
-
   return (
-    <>
-      {currentPath === '/blue-team' ? <BlueTeamDashboard /> : <Dashboard />}
-    </>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/blue-team" element={<BlueTeamDashboard />} />
+        <Route path="/red" element={<RedDashboard />} />
+      </Routes>
+    </BrowserRouter>
   );
 };
 

@@ -153,11 +153,12 @@ async def get_status():
             res.raise_for_status()
             data = res.json()
             op_state = data.get("state", "idle")
+            chain = data.get("chain", [])
 
             if op_state in ["finished", "stopped"]:
                 sim_state.status = "idle"
 
-            return {"status": sim_state.status, "caldera_state": op_state}
+            return {"status": sim_state.status, "caldera_state": op_state, "chain": chain}
 
     except Exception as e:
         logger.error(f"Failed to poll Caldera status: {e}")
