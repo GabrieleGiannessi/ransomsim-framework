@@ -9,6 +9,11 @@
     linux:
       sh:
         command: |
-          echo "Simulating API Enumeration..."
-          curl -s -o /dev/null -w "%{http_code}" http://api:8000/docs
-          echo "Enumeration complete."
+          OUTDIR=/tmp/recon
+          mkdir -p $OUTDIR
+          for endpoint in /docs /patients /users /admin /records; do
+            CODE=$(curl -s -o $OUTDIR/resp_$(echo $endpoint | tr '/' '_').html \
+                   -w "%{http_code}" http://api:8000$endpoint)
+            echo "$endpoint -> $CODE" >> $OUTDIR/enum_results.txt
+          done
+          echo "Enumeration complete. Results in $OUTDIR/enum_results.txt"
