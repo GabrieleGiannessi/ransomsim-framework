@@ -6,6 +6,8 @@ services:
   agent:
     image: alpine:latest
     container_name: caldera_agent_blue
+    extra_hosts:
+      - "host.docker.internal:host-gateway" 
     networks:
       - ransomsim_blue
     depends_on:
