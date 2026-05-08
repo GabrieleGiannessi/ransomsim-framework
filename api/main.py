@@ -1,13 +1,16 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from api.routes import patients, simulation
-from api.database import SessionLocal
-from api.services import db_init
-from contextlib import asynccontextmanager
-from loguru import logger
+import os
 import sys
 import json
 import asyncio
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from loguru import logger
+
+from api.routes import patients, simulation, vulnerable
+from api.database import SessionLocal
+from api.services import db_init
 
 # Setup Loguru with JSON structured logging
 logger.remove()
@@ -54,6 +57,7 @@ app.add_middleware(
 
 app.include_router(patients.router)
 app.include_router(simulation.router, prefix="/sim", tags=["simulation"])
+app.include_router(vulnerable.router)
 
 @app.get("/")
 def root():

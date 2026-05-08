@@ -1,14 +1,29 @@
 ---
 id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
 name: Healthcare Ransomware
-description: "Simulates a ransomware attack against a healthcare system."
+description: >
+  Simulates a complete ransomware attack against a healthcare system,
+  from reconnaissance through initial access to data encryption.
 objective: 495a9828-cab1-44dd-a0ca-66e58177d8cc
 tags:
   - ransomware
   - healthcare
   - research
+  - full-killchain
 fact_source: healthcare-lab
 atomic_ordering:
+  # 1. Reconnaissance
+  - recon-nmap-scan
+  - recon-vuln-scan
+  # 2. Initial Access
+  - initial-access-exploit-api
+  # 3. Discovery
   - discovery-enum-api
+  # 4. Collection
   - collection-dump-db
+  # 5. Exfiltration
+  - exfil-c2-channel
+  # 6. Persistence
+  - persist-cron-backdoor
+  # 7. Impact
   - impact-sim-encrypt

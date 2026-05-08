@@ -36,3 +36,21 @@ reset-blue: down-blue
 	@echo "Resetting Healthcare Database..."
 	rm -f healthcare.db
 	$(MAKE) up-blue
+
+# Full Simulation Mode (realistic multi-subnet scenario)
+up-fullsim:
+	@echo "Avvio simulazione completa (3 subnet isolate)..."
+	docker compose -p ransomsim-full -f infra/docker-compose.full-sim.yaml up -d --remove-orphans
+
+down-fullsim:
+	@echo "Arresto simulazione completa..."
+	docker compose -p ransomsim-full -f infra/docker-compose.full-sim.yaml down
+
+reset-fullsim: down-fullsim
+	@echo "Resetting Healthcare Database..."
+	rm -f healthcare.db
+	$(MAKE) up-fullsim
+
+attacker-shell:
+	@echo "Accesso alla shell dell'attaccante..."
+	docker exec -it sim_attacker /bin/bash

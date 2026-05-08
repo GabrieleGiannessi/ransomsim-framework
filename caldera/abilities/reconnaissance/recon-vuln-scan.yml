@@ -1,0 +1,12 @@
+- id: "recon-vuln-scan"
+  name: "Vulnerability Assessment"
+  description: "Identifies potential vulnerabilities on discovered services."
+  tactic: "reconnaissance"
+  technique:
+    attack_id: "T1595.002"
+    name: "Active Scanning: Vulnerability Scanning"
+  platforms:
+    linux:
+      sh:
+        command: |
+          OUTDIR="/tmp/recon"; mkdir -p "$OUTDIR"; TARGET_IP="#{target.dmz.ip}"; echo "[*] Running Nikto web vulnerability scan against $TARGET_IP..."; nikto -h "http://$TARGET_IP" -output "$OUTDIR/nikto_results.txt" -maxtime 120 2>/dev/null || true; echo "[*] Running Nmap vuln scripts..."; nmap --script vuln -p 80,8000 "$TARGET_IP" -oN "$OUTDIR/nmap_vuln.txt" 2>/dev/null; echo "[+] Vulnerability scan complete"; cat "$OUTDIR/nikto_results.txt" 2>/dev/null; cat "$OUTDIR/nmap_vuln.txt"
