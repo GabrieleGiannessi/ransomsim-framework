@@ -7,3 +7,5 @@ facts:
     value: 8000
   - trait: api.scheme
     value: http
+  - trait: target.dmz.ip
+    value: 10.10.2.10

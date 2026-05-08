@@ -1,0 +1,12 @@
+- id: "recon-nmap-scan"
+  name: "Network Reconnaissance via Nmap"
+  description: "Scans the target network to discover live hosts and open services."
+  tactic: "reconnaissance"
+  technique:
+    attack_id: "T1595.001"
+    name: "Active Scanning: Scanning IP Blocks"
+  platforms:
+    linux:
+      sh:
+        command: |
+          OUTDIR="/tmp/recon"; mkdir -p "$OUTDIR"; echo "[*] Phase 1: Host Discovery on DMZ (10.10.2.0/24)"; nmap -sn 10.10.2.0/24 -oG "$OUTDIR/hosts_alive.txt" 2>/dev/null; echo "[*] Phase 2: Service Scan"; nmap -sV -sC -p 21,22,80,443,3306,5432,8000,8080,8443,8888 10.10.2.0/24 -oN "$OUTDIR/service_scan.txt" 2>/dev/null; echo "[*] Phase 3: Web Service Fingerprint"; nmap --script http-title,http-headers -p 80,443,8000,8080 10.10.2.0/24 -oN "$OUTDIR/web_fingerprint.txt" 2>/dev/null; echo "[+] Recon complete. Results saved to $OUTDIR/"; cat "$OUTDIR/service_scan.txt"
