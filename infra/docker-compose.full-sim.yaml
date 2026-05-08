@@ -1,11 +1,9 @@
-# =============================================================================
+
 # Full Simulation Mode - Realistic Ransomware Attack Scenario
-# =============================================================================
 # Three isolated subnets connected by a router/firewall container:
 #   - attack_net  (10.10.1.0/24): Attacker tools + Caldera C2
 #   - dmz_net     (10.10.2.0/24): Public-facing services (reverse proxy, frontend)
 #   - internal_net(10.10.3.0/24): Backend API, database, internal services
-# =============================================================================
 
 networks:
   attack_net:
@@ -30,9 +28,9 @@ networks:
           gateway: 10.10.3.1
 
 services:
-  # ===========================================================================
+  
   # ROUTER / FIREWALL - connects the three networks with iptables rules
-  # ===========================================================================
+  
   router:
     image: alpine:latest
     container_name: sim_router
@@ -61,9 +59,9 @@ services:
       "
     restart: unless-stopped
 
-  # ===========================================================================
+  
   # ATTACK NETWORK
-  # ===========================================================================
+  
   caldera:
     image: ghcr.io/mitre/caldera:5.2.0
     container_name: sim_caldera
@@ -98,9 +96,9 @@ services:
       "
     restart: unless-stopped
 
-  # ===========================================================================
+  
   # DMZ NETWORK
-  # ===========================================================================
+  
   reverse-proxy:
     image: nginx:alpine
     container_name: sim_reverse_proxy
@@ -143,9 +141,9 @@ services:
       - USER_PASSWORD=hospital2024
     restart: unless-stopped
 
-  # ===========================================================================
+  
   # INTERNAL NETWORK
-  # ===========================================================================
+  
   api:
     image: ghcr.io/astral-sh/uv:python3.10-bookworm-slim
     container_name: sim_api
@@ -197,9 +195,9 @@ services:
       chmod +x sandcat.go &&
       ./sandcat.go -server $${CALDERA_URL} -group red_team"
 
-  # ===========================================================================
+  
   # SUPPORT SERVICES
-  # ===========================================================================
+  
   traffic-generator:
     image: alpine:latest
     container_name: sim_traffic_gen
