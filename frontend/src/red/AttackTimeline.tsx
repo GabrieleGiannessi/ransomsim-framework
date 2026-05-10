@@ -1,6 +1,6 @@
-import React from 'react';
-import { Card, Badge, Alert } from 'react-bootstrap';
-import { FiActivity, FiCheckCircle, FiXCircle, FiClock, FiShieldOff } from 'react-icons/fi';
+import React, { useState } from 'react';
+import { Card, Badge, Alert, Collapse } from 'react-bootstrap';
+import { FiActivity, FiCheckCircle, FiXCircle, FiClock, FiShieldOff, FiTerminal, FiChevronDown, FiChevronRight, FiEye } from 'react-icons/fi';
 
 interface Step {
   ability?: {
@@ -11,12 +11,122 @@ interface Step {
   status: number;
   finish: string;
   id: string;
+  output?: string;
+  command?: string;
+  paw?: string;
+  host?: string;
+  pid?: number;
+  collect?: string;
 }
 
 interface AttackTimelineProps {
   chain: Step[];
   calderaState: string;
 }
+
+/**
+ * Decode base64-encoded strings from Caldera API.
+ * Returns decoded UTF-8 text or a fallback message.
+ */
+const decodeBase64 = (encoded: string | undefined): string => {
+  if (!encoded) return '';
+  try {
+    return atob(encoded);
+  } catch {
+    return encoded;
+  }
+};
+
+/**
+ * Collapsible panel showing the command executed and its output
+ * for a single attack chain step.
+ */
+const StepLogPanel: React.FC<{ step: Step; index: number }> = ({ step, index }) => {
+  const [showCommand, setShowCommand] = useState(false);
+  const [showOutput, setShowOutput] = useState(false);
+
+  const decodedCommand = decodeBase64(step.command);
+  const decodedOutput = decodeBase64(step.output);
+
+  const hasCommand = decodedCommand.length > 0;
+  const hasOutput = decodedOutput.length > 0;
+
+  if (!hasCommand && !hasOutput) return null;
+
+  return (
+    <div className="mt-2">
+      {hasCommand && (
+        <div className="mb-1">
+          <button
+            className="btn btn-sm btn-outline-secondary border-0 px-2 py-0 d-inline-flex align-items-center text-light opacity-75"
+            onClick={() => setShowCommand(!showCommand)}
+            style={{ fontSize: '0.75rem' }}
+          >
+            {showCommand ? <FiChevronDown className="me-1" /> : <FiChevronRight className="me-1" />}
+            <FiTerminal className="me-1" />
+            View Command
+          </button>
+          <Collapse in={showCommand}>
+            <div>
+              <pre
+                className="mt-1 p-2 rounded text-light small mb-0"
+                style={{
+                  backgroundColor: '#1a1a2e',
+                  border: '1px solid #333',
+                  maxHeight: '150px',
+                  overflowY: 'auto',
+                  overflowX: 'auto',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-all',
+                  fontSize: '0.7rem',
+                  lineHeight: '1.4',
+                }}
+              >
+                <code style={{ color: '#ff6b6b' }}>$ </code>
+                <code style={{ color: '#e0e0e0' }}>{decodedCommand}</code>
+              </pre>
+            </div>
+          </Collapse>
+        </div>
+      )}
+
+      {hasOutput && (
+        <div>
+          <button
+            className="btn btn-sm btn-outline-secondary border-0 px-2 py-0 d-inline-flex align-items-center text-light opacity-75"
+            onClick={() => setShowOutput(!showOutput)}
+            style={{ fontSize: '0.75rem' }}
+          >
+            {showOutput ? <FiChevronDown className="me-1" /> : <FiChevronRight className="me-1" />}
+            <FiEye className="me-1" />
+            View Output
+          </button>
+          <Collapse in={showOutput}>
+            <div>
+              <pre
+                className="mt-1 p-2 rounded small mb-0"
+                style={{
+                  backgroundColor: '#0d1117',
+                  border: '1px solid #30363d',
+                  maxHeight: '250px',
+                  overflowY: 'auto',
+                  overflowX: 'auto',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-all',
+                  fontSize: '0.7rem',
+                  lineHeight: '1.4',
+                  color: step.status === 0 ? '#7ee787' : '#ffa198',
+                }}
+              >
+                {decodedOutput}
+              </pre>
+            </div>
+          </Collapse>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const AttackTimeline: React.FC<AttackTimelineProps> = ({ chain, calderaState }) => {
   // Deduplicate chain: if an ability was retried, prefer the successful/finished one
@@ -44,7 +154,7 @@ export const AttackTimeline: React.FC<AttackTimelineProps> = ({ chain, calderaSt
           Execution Timeline
         </h5>
       </Card.Header>
-      <Card.Body className="text-light" style={{ overflowY: 'auto', maxHeight: '600px' }}>
+      <Card.Body className="text-light" style={{ overflowY: 'auto', maxHeight: '700px' }}>
         
         {filteredChain.length === 0 ? (
           <div className="d-flex flex-column align-items-center justify-content-center h-100 text-white opacity-50">
@@ -95,6 +205,9 @@ export const AttackTimeline: React.FC<AttackTimelineProps> = ({ chain, calderaSt
                       : 'In Progress...'}
                   </span>
                 </div>
+
+                {/* Expandable command & output logs */}
+                <StepLogPanel step={step} index={index} />
               </div>
             ))}
             {calderaState === 'running' && (

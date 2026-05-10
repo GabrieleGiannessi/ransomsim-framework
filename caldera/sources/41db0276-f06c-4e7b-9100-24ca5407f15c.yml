@@ -1,0 +1,13 @@
+id: 41db0276-f06c-4e7b-9100-24ca5407f15c
+name: Ransomware Simulation - a1b2c3d4-e5f6-7890-abcd-ef1234567890
+facts:
+- trait: host.ip.address
+  value: 10.10.2.0
+  score: 1
+- trait: host.ip.address
+  value: 10.10.2.10
+  score: 1
+- trait: host.file.path
+  value: /5 * * * * curl -s http://http://host.docker.internal:8888:8888/beacon
+  score: 1
+relationships: []

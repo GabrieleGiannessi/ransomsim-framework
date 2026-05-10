@@ -152,6 +152,8 @@ services:
         ipv4_address: 10.10.2.30
       internal_net:
         ipv4_address: 10.10.3.10
+      attack_net:
+        ipv4_address: 10.10.1.40
     working_dir: /app
     environment:
       - CALDERA_URL=http://10.10.1.10:8888
@@ -179,7 +181,7 @@ services:
     volumes:
       - ../:/app
     command: >
-      sh -c "apk add --no-cache curl openssl &&
+      sh -c "apk add --no-cache curl openssl nmap nmap-scripts tar &&
       while true; do
         HTTP_STATUS=$$(curl -s -o sandcat.go -w '%{http_code}' -X POST
           -H 'file:sandcat.go' -H 'platform:linux'
