@@ -117,7 +117,7 @@ export const PatientTable: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {data.data.map((patient: Patient) => (
+                {data.data?.map((patient: Patient) => (
                   <tr key={patient.id}>
                     <td className="px-4 fw-semibold text-dark">{patient.name}</td>
                     <td>{patient.age}</td>
@@ -136,7 +136,7 @@ export const PatientTable: React.FC = () => {
                     <td>{patient.doctor}</td>
                   </tr>
                 ))}
-                {data.data.length === 0 && (
+                {(!data.data || data.data.length === 0) && (
                   <tr>
                     <td colSpan={7} className="text-center p-4 text-muted">No patients found.</td>
                   </tr>

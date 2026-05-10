@@ -6,6 +6,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware  
+  
 from loguru import logger
 
 from api.routes import patients, simulation, vulnerable
@@ -39,11 +41,15 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("Shutting down API...")
 
-app = FastAPI(
-    title="Healthcare API",
-    description="RESTful API for Healthcare Dataset",
-    version="1.0.0",
-    lifespan=lifespan
+app = FastAPI(  
+    title="Healthcare API",  
+    description="RESTful API for Healthcare Dataset",  
+    version="1.0.0",  
+    lifespan=lifespan,  
+    openapi_version="3.2.0",  
+    servers=[  
+        {"url": "/api", "description": "API server behind reverse proxy"}  
+    ]
 )
 
 # Configure CORS for React frontend
@@ -53,6 +59,11 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+)
+
+app.add_middleware(  
+    TrustedHostMiddleware,  
+    allowed_hosts=["*"]  
 )
 
 app.include_router(patients.router)

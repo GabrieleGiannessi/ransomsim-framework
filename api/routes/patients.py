@@ -7,10 +7,11 @@ from api.services import patient_service
 
 router = APIRouter(
     prefix="/patients",
-    tags=["patients"]
+    tags=["patients"],
+    redirect_slashes=False
 )
 
-@router.get("/", response_model=PaginatedPatientResponse)
+@router.get("", response_model=PaginatedPatientResponse)
 def get_patients(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -33,7 +34,7 @@ def get_patient(patient_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Patient not found")
     return patient
 
-@router.post("/", response_model=PatientResponse)
+@router.post("", response_model=PatientResponse)
 def create_patient(patient: PatientCreate, db: Session = Depends(get_db)):
     return patient_service.create_patient(db, patient)
 

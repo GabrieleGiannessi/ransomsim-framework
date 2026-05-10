@@ -122,7 +122,7 @@ services:
         ipv4_address: 10.10.2.20
     working_dir: /app
     environment:
-      - VITE_API_URL=http://localhost/api
+      - VITE_API_URL=/api
     volumes:
       - ../frontend:/app
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
