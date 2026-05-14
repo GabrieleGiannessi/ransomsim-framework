@@ -1,3 +1,5 @@
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/GabrieleGiannessi/ransomsim-framework)
+
 # SEC4H project - ransomware attack scenario
 
 A research framework for simulating ransomware attacks against healthcare systems. It combines a MITRE Caldera C2 server, a FastAPI backend with a simulated healthcare database, and a React/Vite frontend for orchestrating and monitoring attack simulations in real time.
