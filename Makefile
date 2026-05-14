@@ -51,6 +51,15 @@ reset-fullsim: down-fullsim
 	rm -f healthcare.db
 	$(MAKE) up-fullsim
 
+reset-hard:
+	@echo "Hard reset: container, volumi, DB e artefatti git..."
+	docker compose -p ransomsim-full -f infra/docker-compose.full-sim.yaml down -v --remove-orphans
+	docker compose -p ransomsim-red  -f infra/docker-compose.red.yaml down -v --remove-orphans
+	rm -f healthcare.db
+	git checkout -- .
+	git clean -fd --exclude=".env"
+	@echo "Reset completo. Riavvia con: make up-fullsim"
+
 attacker-shell:
 	@echo "Accesso alla shell dell'attaccante..."
 	docker exec -it sim_attacker /bin/bash
