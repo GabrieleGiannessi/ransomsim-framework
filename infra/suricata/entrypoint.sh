@@ -23,6 +23,7 @@ fi
 
 # Crea la directory dei log se non esiste
 mkdir -p /var/log/suricata
+rm -f /var/run/suricata.pid
 
 # Avvia Suricata IN BACKGROUND
 # Setup: siamo nel namespace del container ROUTER.
@@ -38,7 +39,7 @@ if [ "$SURICATA_IFACE" = "any" ] || [ -z "$SURICATA_IFACE" ]; then
         fi
     done
     echo "[entrypoint] Launching Suricata on ALL interfaces (from yaml config)..."
-    suricata -c /etc/suricata/suricata.yaml --pidfile /var/run/suricata.pid &
+    suricata -c /etc/suricata/suricata.yaml --af-packet --pidfile /var/run/suricata.pid &
 else
     echo "[entrypoint] Enabling promiscuous mode on ${SURICATA_IFACE}..."
     ip link set "$SURICATA_IFACE" promisc on 2>/dev/null || true
