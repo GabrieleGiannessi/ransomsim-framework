@@ -11,6 +11,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from loguru import logger
 
 from api.routes import patients, simulation, vulnerable
+from api.routes import alerts as alerts_router
 from api.database import SessionLocal
 from api.services import db_init
 
@@ -69,6 +70,7 @@ app.add_middleware(
 app.include_router(patients.router)
 app.include_router(simulation.router, prefix="/sim", tags=["simulation"])
 app.include_router(vulnerable.router)
+app.include_router(alerts_router.router)  # Suricata IDS alerts
 
 @app.get("/")
 def root():

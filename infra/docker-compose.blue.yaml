@@ -14,8 +14,6 @@ services:
       - api
     restart: on-failure
     environment:
-      # L'IP della macchina Red Team deve essere passato tramite variabile d'ambiente.
-      # Esempio: CALDERA_URL=http://192.168.1.100:8888 docker-compose -f docker-compose.blue.yaml up -d
       - CALDERA_URL=${CALDERA_URL:-http://host.docker.internal:8888}
     volumes:
       - ../:/app
@@ -67,3 +65,41 @@ services:
       - ../frontend:/app
     command: >
       sh -c "npm install && npm run dev -- --host 0.0.0.0"
+
+  # -------------------------------------------------------------------------
+  # Suricata IDS — Blue Team Network Monitor
+  # Sniffa il traffico della ransomsim_blue network e invia alert all'API
+  # -------------------------------------------------------------------------
+  suricata:
+    image: jasonish/suricata:latest
+    container_name: suricata_blue
+    network_mode: "service:api"   # condivide la network stack dell'API per sniffare tutto il traffico blue
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      - API_URL=http://127.0.0.1:8000  # stesso host poiche' condivide il network namespace
+      - SURICATA_IFACE=eth0
+      - SURICATA_POLL_INTERVAL=${SURICATA_POLL_INTERVAL:-15}
+    volumes:
+      - ./suricata/suricata.yaml:/etc/suricata/suricata.yaml:ro
+      - ./suricata/rules:/etc/suricata/rules:ro
+      - suricata_logs:/var/log/suricata
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    # Monta lo script di entrypoint custom
+    configs:
+      - source: suricata_entrypoint
+        target: /entrypoint.sh
+        mode: 0755
+    depends_on:
+      - api
+    restart: unless-stopped
+
+configs:
+  suricata_entrypoint:
+    file: ./suricata/entrypoint.sh
+
+volumes:
+  suricata_logs:
+    driver: local

@@ -201,6 +201,36 @@ services:
       chmod +x sandcat.go && \
       ./sandcat.go -server $${CALDERA_URL} -group red_team"
 
+  # -------------------------------------------------------------------------
+  # Suricata IDS — Full-Sim Blue Team Sensor
+  # Posizionato nella DMZ per monitorare il traffico in ingresso e interno.
+  # Condivide il network namespace del reverse-proxy per visibilita' completa.
+  # -------------------------------------------------------------------------
+  suricata:
+    image: jasonish/suricata:latest
+    container_name: sim_suricata
+    network_mode: "service:api"  # vede il traffico su tutte le subnet a cui e' connessa l'API
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+      - SYS_NICE
+    environment:
+      - API_URL=http://127.0.0.1:8000
+      - SURICATA_IFACE=eth0   # prima interfaccia (dmz_net)
+      - SURICATA_POLL_INTERVAL=${SURICATA_POLL_INTERVAL:-15}
+    volumes:
+      - ./suricata/suricata.yaml:/etc/suricata/suricata.yaml:ro
+      - ./suricata/rules:/etc/suricata/rules:ro
+      - suricata_logs:/var/log/suricata
+    configs:
+      - source: suricata_entrypoint
+        target: /entrypoint.sh
+        mode: 0755
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    depends_on:
+      - api
+    restart: unless-stopped
+
   
   # SUPPORT SERVICES
   
@@ -221,3 +251,11 @@ services:
         sleep $$(shuf -i 1-5 -n 1);
       done"
     restart: unless-stopped
+
+configs:
+  suricata_entrypoint:
+    file: ./suricata/entrypoint.sh
+
+volumes:
+  suricata_logs:
+    driver: local
