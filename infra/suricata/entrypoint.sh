@@ -24,8 +24,14 @@ fi
 mkdir -p /var/log/suricata
 
 # Avvia Suricata in background
-echo "[entrypoint] Launching Suricata on interface ${SURICATA_IFACE:-eth0}..."
-suricata -c /etc/suricata/suricata.yaml -i "${SURICATA_IFACE:-eth0}" --pidfile /var/run/suricata.pid &
+# Se SURICATA_IFACE è "any", usiamo la config multi-interfaccia dello yaml
+if [ "$SURICATA_IFACE" = "any" ] || [ -z "$SURICATA_IFACE" ]; then
+    echo "[entrypoint] Launching Suricata on ALL interfaces (from yaml config)..."
+    suricata -c /etc/suricata/suricata.yaml --pidfile /var/run/suricata.pid &
+else
+    echo "[entrypoint] Launching Suricata on specific interface ${SURICATA_IFACE}..."
+    suricata -c /etc/suricata/suricata.yaml -i "$SURICATA_IFACE" --pidfile /var/run/suricata.pid &
+fi
 SURICATA_PID=$!
 
 # Attendi che il log file esista

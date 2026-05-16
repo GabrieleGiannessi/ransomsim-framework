@@ -95,14 +95,10 @@ async def ingest_alert(body: dict):
     Fa anche broadcast real-time via WebSocket verso la dashboard.
     """
     event_type = body.get("event_type", "")
-    # Scartiamo eventi tecnici (flow, stats, decoder anomalies) per evitare rumore.
-    # Accettiamo solo alert reali o anomalie con firma specifica.
+    # Accettiamo ESCLUSIVAMENTE alert di sicurezza definiti nelle regole.
+    # Scartiamo anomalies, flow, stats, ecc. per eliminare il rumore (decode/stream).
     if event_type != "alert":
-        if event_type == "anomaly" and body.get("anomaly", {}).get("type") != "decode":
-            # Passa se è un'anomalia interessante ma non di puro decoding
-            pass
-        else:
-            return {"status": "ignored", "event_type": event_type}
+        return {"status": "ignored", "event_type": event_type}
 
     alert = _parse_eve_alert(body)
     _alert_store.append(alert)

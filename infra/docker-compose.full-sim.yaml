@@ -216,7 +216,7 @@ services:
       - SYS_NICE
     environment:
       - API_URL=http://127.0.0.1:8000
-      - SURICATA_IFACE=eth0   # prima interfaccia (dmz_net)
+      - SURICATA_IFACE=any
       - SURICATA_POLL_INTERVAL=${SURICATA_POLL_INTERVAL:-15}
     volumes:
       - ./suricata/suricata.yaml:/etc/suricata/suricata.yaml:ro

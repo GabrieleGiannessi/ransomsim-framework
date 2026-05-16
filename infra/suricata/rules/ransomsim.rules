@@ -21,7 +21,7 @@ alert http any any -> $HOME_NET $HTTP_PORTS (msg:"RANSOMSIM RECON Nikto Web Scan
 alert http $HOME_NET any -> any 8888 (msg:"RANSOMSIM C2 Caldera Sandcat beacon detected"; http.method; content:"POST"; http.uri; content:"/beacon"; classtype:trojan-activity; sid:9001001; rev:3;)
 
 # Download del payload sandcat.go da Caldera
-alert http $HOME_NET any -> any 8888 (msg:"RANSOMSIM C2 Caldera agent payload download"; http.method; content:"POST"; http.uri; content:"/file/download"; http.header; content:"file:sandcat.go"; classtype:trojan-activity; sid:9001002; rev:2;)
+alert http $HOME_NET any -> any 8888 (msg:"RANSOMSIM C2 Caldera agent payload download"; http.method; content:"POST"; http.uri; content:"/file/download"; http.header; content:"file:sandcat.go"; priority:1; classtype:trojan-activity; sid:9001002; rev:3;)
 
 # Comunicazione Caldera via TLS 8443
 alert tls $HOME_NET any -> any 8443 (msg:"RANSOMSIM C2 Caldera TLS channel detected"; classtype:trojan-activity; sid:9001003; rev:2;)
@@ -43,13 +43,13 @@ alert http $HOME_NET any -> any any (msg:"RANSOMSIM LATERAL MOVE curl pipe execu
 # GRUPPO 4: Data Exfiltration
 
 # Upload HTTP insolito verso esterno (POST di grandi payload)
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"RANSOMSIM EXFILTRATION Large HTTP POST to external host"; http.method; content:"POST"; dsize:>10000; classtype:policy-violation; sid:9003001; rev:2;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"RANSOMSIM EXFILTRATION Large HTTP POST to external host"; http.method; content:"POST"; dsize:>1000; priority:1; classtype:policy-violation; sid:9003001; rev:3;)
 
 # DNS tunneling (query TXT di lunghezza anomala)
 alert dns any any -> any 53 (msg:"RANSOMSIM EXFILTRATION Suspicious long DNS TXT query (possible tunneling)"; dns.query; isdataat:50; classtype:policy-violation; sid:9003002; rev:2;)
 
 # Accesso diretto al dataset healthcare (richieste di dump massivo)
-alert http any any -> $HOME_NET 8000 (msg:"RANSOMSIM EXFILTRATION Possible healthcare data mass dump"; http.uri; content:"/patients"; http.uri; content:"limit=1000"; classtype:policy-violation; sid:9003003; rev:2;)
+alert http any any -> $HOME_NET 8000 (msg:"RANSOMSIM EXFILTRATION Possible healthcare data mass dump"; http.uri; content:"/patients"; http.uri; content:"limit="; priority:1; classtype:policy-violation; sid:9003003; rev:3;)
 
 # GRUPPO 5: Ransomware Behavior
 
