@@ -1,9 +1,7 @@
 #!/bin/sh
-# =============================================================================
 # Suricata Entrypoint — RansomSim Blue Team
 # Avvia Suricata in modalità IDS e fa polling periodico dei log eve.json
 # per inviarli all'API del blue team come alert sulla dashboard.
-# =============================================================================
 
 set -e
 
@@ -47,9 +45,8 @@ fi
 # Inizializza la posizione di lettura a fine file (legge solo i nuovi eventi)
 wc -c "$LOG_FILE" 2>/dev/null | awk '{print $1}' > "$LAST_POS_FILE" 2>/dev/null || echo "0" > "$LAST_POS_FILE"
 
-# =============================================================================
+
 # Loop di polling: legge i nuovi alert dall'eve.json e li invia all'API
-# =============================================================================
 while true; do
     sleep "$POLL_INTERVAL"
 

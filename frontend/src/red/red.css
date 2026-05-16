@@ -51,13 +51,21 @@
 @keyframes pulse-red {
   0% {
     box-shadow: 0 0 0 0 rgba(255, 76, 76, 0.7);
+    opacity: 1;
   }
   70% {
     box-shadow: 0 0 0 10px rgba(255, 76, 76, 0);
+    opacity: 0.6;
   }
   100% {
     box-shadow: 0 0 0 0 rgba(255, 76, 76, 0);
+    opacity: 1;
   }
+}
+
+/* KPI cards: prevent number overflow on narrow columns */
+.display-6 {
+  font-size: clamp(1.2rem, 3vw, 2rem) !important;
 }
 
 .timeline-container {

@@ -1,9 +1,7 @@
-# =============================================================================
 # Alerts Router — RansomSim Blue Team
 # Riceve gli alert Suricata via POST e li serve alla dashboard via:
 #   - REST: GET /alerts/
 #   - WebSocket: ws://api/alerts/ws  (push real-time)
-# =============================================================================
 
 import json
 from typing import Optional, List
@@ -15,17 +13,12 @@ from loguru import logger
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
-# ---------------------------------------------------------------------------
 # In-memory store (ring buffer: ultimi MAX_ALERTS alert)
-# In produzione sostituire con tabella SQLite/Postgres.
-# ---------------------------------------------------------------------------
 MAX_ALERTS = 500
 _alert_store: deque = deque(maxlen=MAX_ALERTS)
 
 
-# ---------------------------------------------------------------------------
 # WebSocket manager (stesso pattern del modulo simulation)
-# ---------------------------------------------------------------------------
 class AlertConnectionManager:
     def __init__(self):
         self.active: List[WebSocket] = []
@@ -54,10 +47,7 @@ class AlertConnectionManager:
 manager = AlertConnectionManager()
 
 
-# ---------------------------------------------------------------------------
-# Modelli dati inline (Pydantic-free per semplicità — usa dict)
-# ---------------------------------------------------------------------------
-
+# Modelli dati inline
 def _parse_eve_alert(raw: dict) -> dict:
     """Normalizza un evento EVE JSON di Suricata in un alert per la dashboard."""
     alert_info = raw.get("alert", {})
@@ -76,7 +66,9 @@ def _parse_eve_alert(raw: dict) -> dict:
         "timestamp": raw.get("timestamp", datetime.utcnow().isoformat()),
         "event_type": event_type,
         "severity": severity,
-        "signature": alert_info.get("signature", raw.get("anomaly", {}).get("type", "unknown")),
+        "signature": alert_info.get(
+            "signature", raw.get("anomaly", {}).get("type", "unknown")
+        ),
         "signature_id": alert_info.get("signature_id", 0),
         "category": alert_info.get("category", "anomaly"),
         "src_ip": src_ip,
@@ -94,10 +86,7 @@ def _parse_eve_alert(raw: dict) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
 # Endpoints REST
-# ---------------------------------------------------------------------------
-
 @router.post("/ingest", status_code=201)
 async def ingest_alert(body: dict):
     """
@@ -126,8 +115,12 @@ async def ingest_alert(body: dict):
 @router.get("/")
 async def list_alerts(
     limit: int = Query(default=50, ge=1, le=500),
-    severity: Optional[str] = Query(default=None, description="Filtra per severity: high|medium|low|info"),
-    event_type: Optional[str] = Query(default=None, description="Filtra per tipo: alert|anomaly"),
+    severity: Optional[str] = Query(
+        default=None, description="Filtra per severity: high|medium|low|info"
+    ),
+    event_type: Optional[str] = Query(
+        default=None, description="Filtra per tipo: alert|anomaly"
+    ),
 ):
     """
     Restituisce gli ultimi alert Suricata (ordinati dal più recente).
@@ -189,10 +182,6 @@ async def clear_alerts():
     logger.info("[alerts] Alert store cleared.")
     return {"status": "cleared"}
 
-
-# ---------------------------------------------------------------------------
-# WebSocket push (dashboard si connette qui per aggiornamenti real-time)
-# ---------------------------------------------------------------------------
 
 @router.websocket("/ws")
 async def alerts_websocket(ws: WebSocket):
