@@ -1,0 +1,295 @@
+# =============================================================================
+# Suricata Configuration — RansomSim Blue Team
+# Modalità: IDS passivo, analisi del traffico interno della rete blue/sim
+# =============================================================================
+
+%YAML 1.1
+---
+
+var:
+  address-groups:
+    HOME_NET: "[10.10.1.0/24,10.10.2.0/24,10.10.3.0/24,172.16.0.0/12,192.168.0.0/16]"
+    EXTERNAL_NET: "!$HOME_NET"
+
+    # Server interni del framework
+    HTTP_SERVERS: "$HOME_NET"
+    SMTP_SERVERS: "$HOME_NET"
+    SQL_SERVERS: "$HOME_NET"
+    DNS_SERVERS: "$HOME_NET"
+    TELNET_SERVERS: "$HOME_NET"
+    AIM_SERVERS: "$EXTERNAL_NET"
+    DC_SERVERS: "$HOME_NET"
+    DNP3_SERVER: "$HOME_NET"
+    DNP3_CLIENT: "$HOME_NET"
+    MODBUS_CLIENT: "$HOME_NET"
+    MODBUS_SERVER: "$HOME_NET"
+    ENIP_CLIENT: "$HOME_NET"
+    ENIP_SERVER: "$HOME_NET"
+
+  port-groups:
+    HTTP_PORTS: "80"
+    SHELLCODE_PORTS: "!80"
+    ORACLE_PORTS: 1521
+    SSH_PORTS: 22
+    DNP3_PORTS: 20000
+    MODBUS_PORTS: 502
+    FILE_DATA_PORTS: "[$HTTP_PORTS,110,143]"
+    FTP_PORTS: 21
+    VXLAN_PORTS: 4789
+    TEREDO_PORTS: 3544
+
+# -----------------------------------------------------------------------------
+# Network interface configuration
+# -----------------------------------------------------------------------------
+af-packet:
+  - interface: eth0
+    cluster-id: 99
+    cluster-type: cluster_flow
+    defrag: yes
+    use-mmap: yes
+    tpacket-v3: yes
+
+pcap:
+  - interface: eth0
+
+# -----------------------------------------------------------------------------
+# Decoder / stream tracking
+# -----------------------------------------------------------------------------
+stream:
+  memcap: 64mb
+  checksum-validation: yes
+  inline: auto
+  reassembly:
+    memcap: 256mb
+    depth: 1mb
+    toserver-chunk-size: 2560
+    toclient-chunk-size: 2560
+    randomize-chunk-size: yes
+
+host-mode: auto
+max-pending-packets: 1024
+runmode: autofp
+
+# -----------------------------------------------------------------------------
+# Application layer detection
+# -----------------------------------------------------------------------------
+app-layer:
+  protocols:
+    tls:
+      enabled: yes
+      detection-ports:
+        dp: 443
+    http:
+      enabled: yes
+      libhtp:
+        default-config:
+          personality: IDS
+          request-body-limit: 100kb
+          response-body-limit: 100kb
+          request-body-minimal-inspect-size: 32kb
+          request-body-inspect-window: 4kb
+          response-body-minimal-inspect-size: 40kb
+          response-body-inspect-window: 16kb
+          response-body-decompress-layer-limit: 2
+          http-body-inline: auto
+          swf-decompression:
+            enabled: yes
+            type: both
+            compress-depth: 0
+            decompress-depth: 0
+          double-decode-path: no
+          double-decode-query: no
+    ftp:
+      enabled: yes
+    ssh:
+      enabled: yes
+    smtp:
+      enabled: yes
+      raw-extraction: no
+      mime:
+        decode-mime: yes
+        decode-base64: yes
+        decode-quoted-printable: yes
+        header-value-depth: 2000
+        extract-urls: yes
+        body-md5: no
+      inspected-tracker:
+        content-limit: 100000
+        content-inspect-min-size: 32768
+        content-inspect-window: 4096
+    dns:
+      tcp:
+        enabled: yes
+        detection-ports:
+          dp: 53
+      udp:
+        enabled: yes
+        detection-ports:
+          dp: 53
+
+# -----------------------------------------------------------------------------
+# Regole — file custom + ET Open (subset ransomware/malware)
+# -----------------------------------------------------------------------------
+default-rule-path: /etc/suricata/rules
+
+rule-files:
+  - ransomsim.rules
+  # Opzionale: ET Open rules se presente il volume
+  # - /var/lib/suricata/rules/suricata.rules
+
+# Classificazione severità
+classification-file: /etc/suricata/classification.config
+reference-config-file: /etc/suricata/reference.config
+
+# -----------------------------------------------------------------------------
+# Output: EVE JSON → file condiviso con l'API
+# -----------------------------------------------------------------------------
+outputs:
+
+  # Log principale strutturato in JSON (Eve)
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: /var/log/suricata/eve.json
+      pcap-file: false
+      community-id: true
+      community-id-seed: 0
+      xff:
+        enabled: no
+        mode: extra-data
+        deployment: reverse
+        header: X-Forwarded-For
+      types:
+        - alert:
+            # Metadati aggiuntivi nell'alert
+            payload: yes
+            payload-buffer-size: 4kb
+            payload-printable: yes
+            packet: yes
+            metadata: yes
+            http-body: yes
+            http-body-printable: yes
+            tagged-packets: yes
+        - anomaly:
+            enabled: yes
+            types:
+              decode: yes
+              stream: yes
+              applayer: yes
+        - http:
+            extended: yes
+        - dns:
+            version: 2
+        - tls:
+            extended: yes
+        - files:
+            force-magic: no
+        - smtp:
+        - ftp
+        - rdp
+        - ssh
+        - flow
+        - netflow
+
+  # Log fast (riga singola per alert — utile per monitoring rapido)
+  - fast:
+      enabled: yes
+      filename: /var/log/suricata/fast.log
+      append: yes
+
+  # Stats periodiche
+  - stats:
+      enabled: yes
+      filename: /var/log/suricata/stats.log
+      totals: yes
+      threads: no
+      null-values: yes
+
+  # Log di sistema
+  - syslog:
+      enabled: no
+      facility: local5
+      format: "[%i] "
+
+# -----------------------------------------------------------------------------
+# File extraction (opzionale — utile per analisi malware)
+# -----------------------------------------------------------------------------
+file-store:
+  version: 2
+  enabled: no
+  dir: /var/log/suricata/files
+  write-fileinfo: yes
+  stream-depth: 0
+  force-magic: no
+  force-hash: [md5, sha256]
+
+# -----------------------------------------------------------------------------
+# Limiti di performance / memoria
+# -----------------------------------------------------------------------------
+detect:
+  profile: medium
+  custom-values:
+    toclient-groups: 3
+    toserver-groups: 25
+  sgh-mpm-context: auto
+  inspection-recursion-limit: 3000
+  prefilter:
+    default: mpm
+  grouping:
+  rules-fast-pattern:
+
+defrag:
+  memcap: 32mb
+  hash-size: 65536
+  trackers: 65535
+  max-frags: 65535
+  prealloc: yes
+  timeout: 60
+
+flow:
+  memcap: 128mb
+  hash-size: 65536
+  prealloc: 10000
+  emergency-recovery: 30
+
+vlan:
+  use-for-tracking: true
+
+flow-timeouts:
+  default:
+    new: 30
+    established: 300
+    closed: 0
+    bypassed: 100
+    emergency-new: 10
+    emergency-established: 100
+    emergency-closed: 0
+    emergency-bypassed: 50
+  tcp:
+    new: 60
+    established: 600
+    closed: 60
+    bypassed: 100
+    emergency-new: 5
+    emergency-established: 100
+    emergency-closed: 10
+    emergency-bypassed: 50
+  udp:
+    new: 30
+    established: 300
+    bypassed: 100
+    emergency-new: 10
+    emergency-established: 100
+    emergency-bypassed: 50
+  icmp:
+    new: 30
+    established: 300
+    bypassed: 100
+    emergency-new: 10
+    emergency-established: 100
+    emergency-bypassed: 50
+
+host:
+  hash-size: 4096
+  prealloc: 1000
+  memcap: 32mb

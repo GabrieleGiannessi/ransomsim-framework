@@ -1,0 +1,76 @@
+# =============================================================================
+# RansomSim — Regole Suricata per Blue Team
+# Copertura: Ransomware, C2, Lateral Movement, Exfiltration, Port Scan
+# =============================================================================
+
+# --------------- GRUPPO 1: Ricognizione / Port Scanning -----------------------
+
+# Rilevamento nmap SYN scan (TCP SYN su molte porte)
+alert tcp any any -> $HOME_NET any (msg:"RANSOMSIM RECON Nmap SYN Scan detected"; flags:S,12; threshold: type threshold, track by_src, count 30, seconds 10; classtype:network-scan; sid:9000001; rev:2;)
+
+# Nmap OS detection (TTL fingerprinting — pacchetti con opzioni TCP inusuali)
+alert tcp any any -> $HOME_NET any (msg:"RANSOMSIM RECON Possible Nmap OS Fingerprint"; flags:SF; window:1024; threshold: type threshold, track by_src, count 5, seconds 5; classtype:network-scan; sid:9000002; rev:2;)
+
+# Hydra / brute-force SSH
+alert tcp any any -> $HOME_NET 22 (msg:"RANSOMSIM RECON SSH Brute Force attempt"; flags:S; threshold: type threshold, track by_src, count 10, seconds 10; classtype:attempted-user; sid:9000003; rev:2;)
+
+# Nikto web scanner signature
+alert http any any -> $HOME_NET $HTTP_PORTS (msg:"RANSOMSIM RECON Nikto Web Scanner detected"; http.user_agent; content:"Nikto"; nocase; classtype:web-application-attack; sid:9000004; rev:2;)
+
+# --------------- GRUPPO 2: Caldera C2 Communication -------------------------
+
+# Sandcat agent beacon verso Caldera (HTTP POST a /beacon)
+alert http $HOME_NET any -> any 8888 (msg:"RANSOMSIM C2 Caldera Sandcat beacon detected"; http.method; content:"POST"; http.uri; content:"/beacon"; classtype:trojan-activity; sid:9001001; rev:3;)
+
+# Download del payload sandcat.go da Caldera
+alert http $HOME_NET any -> any 8888 (msg:"RANSOMSIM C2 Caldera agent payload download"; http.method; content:"POST"; http.uri; content:"/file/download"; http.header; content:"file:sandcat.go"; classtype:trojan-activity; sid:9001002; rev:2;)
+
+# Comunicazione Caldera via TLS 8443
+alert tls $HOME_NET any -> any 8443 (msg:"RANSOMSIM C2 Caldera TLS channel detected"; classtype:trojan-activity; sid:9001003; rev:2;)
+
+# Heartbeat C2 generico (polling ripetuto a intervalli regolari)
+alert http $HOME_NET any -> any any (msg:"RANSOMSIM C2 Periodic HTTP beacon (possible C2 heartbeat)"; http.method; content:"GET"; threshold: type both, track by_src, count 20, seconds 60; classtype:trojan-activity; sid:9001004; rev:2;)
+
+# --------------- GRUPPO 3: Lateral Movement ----------------------------------
+
+# Accesso SSH da host interno verso altro host interno
+alert tcp $HOME_NET any -> $HOME_NET 22 (msg:"RANSOMSIM LATERAL MOVE Internal SSH connection"; flags:S; classtype:attempted-admin; sid:9002001; rev:2;)
+
+# Esecuzione remota via HTTP verso API interna (possibile fileless execution)
+alert http $HOME_NET any -> $HOME_NET 8000 (msg:"RANSOMSIM LATERAL MOVE Suspicious internal API call with command pattern"; http.uri; content:"exec"; nocase; classtype:attempted-admin; sid:9002002; rev:2;)
+
+# Trasferimento file sospetto (curl con pipe)
+alert http $HOME_NET any -> any any (msg:"RANSOMSIM LATERAL MOVE curl pipe execution pattern"; http.user_agent; content:"curl"; nocase; http.uri; content:".sh"; classtype:trojan-activity; sid:9002003; rev:2;)
+
+# --------------- GRUPPO 4: Data Exfiltration ---------------------------------
+
+# Upload HTTP insolito verso esterno (POST di grandi payload)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"RANSOMSIM EXFILTRATION Large HTTP POST to external host"; http.method; content:"POST"; dsize:>10000; classtype:policy-violation; sid:9003001; rev:2;)
+
+# DNS tunneling (query TXT di lunghezza anomala)
+alert dns any any -> any 53 (msg:"RANSOMSIM EXFILTRATION Suspicious long DNS TXT query (possible tunneling)"; dns.query; isdataat:50; classtype:policy-violation; sid:9003002; rev:2;)
+
+# Accesso diretto al dataset healthcare (richieste di dump massivo)
+alert http any any -> $HOME_NET 8000 (msg:"RANSOMSIM EXFILTRATION Possible healthcare data mass dump"; http.uri; content:"/patients"; http.uri; content:"limit=1000"; classtype:policy-violation; sid:9003003; rev:2;)
+
+# --------------- GRUPPO 5: Ransomware Behavior --------------------------------
+
+# Connessioni multiple in uscita su porte non standard (C2 fallback channels)
+alert tcp $HOME_NET any -> $EXTERNAL_NET [4444,5555,6666,7777,9999,1234,31337] (msg:"RANSOMSIM RANSOMWARE Outbound connection to common C2 port"; flags:S; classtype:trojan-activity; sid:9004001; rev:2;)
+
+# Traffico SMB interno (possibile propagazione tipo WannaCry)
+alert tcp $HOME_NET any -> $HOME_NET 445 (msg:"RANSOMSIM RANSOMWARE Internal SMB connection (possible lateral propagation)"; flags:S; classtype:attempted-admin; sid:9004002; rev:2;)
+
+# Traffico RDP interno sospetto
+alert tcp $HOME_NET any -> $HOME_NET 3389 (msg:"RANSOMSIM RANSOMWARE Internal RDP connection attempt"; flags:S; classtype:attempted-admin; sid:9004003; rev:2;)
+
+# --------------- GRUPPO 6: Anomalie di rete generali -------------------------
+
+# ICMP flood
+alert icmp any any -> $HOME_NET any (msg:"RANSOMSIM ANOMALY ICMP flood detected"; itype:8; threshold: type threshold, track by_src, count 50, seconds 5; classtype:denial-of-service; sid:9005001; rev:2;)
+
+# Connessione a indirizzi privati da DMZ (possibile pivot)
+alert tcp 10.10.2.0/24 any -> 10.10.3.0/24 any (msg:"RANSOMSIM ANOMALY DMZ to Internal network lateral connection"; flags:S; classtype:policy-violation; sid:9005002; rev:2;)
+
+# Porta aperta anomala sul router container
+alert tcp any any -> 10.10.1.254 any (msg:"RANSOMSIM ANOMALY Direct connection to router/firewall container"; flags:S; classtype:policy-violation; sid:9005003; rev:2;)
