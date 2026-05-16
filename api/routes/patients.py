@@ -1,3 +1,4 @@
+import os
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -11,6 +12,20 @@ router = APIRouter(
     redirect_slashes=False
 )
 
+# Path to the database file – same derivation as api/database.py
+# We go up 3 levels: api/routes/patients.py -> api/routes -> api -> project_root
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_DB_PATH = os.path.join(_BASE_DIR, "healthcare.db")
+
+def _check_db_available():
+    """Raise 503 if the database file has been deleted (ransomware impact)."""
+    if not os.path.exists(_DB_PATH):
+        raise HTTPException(
+            status_code=503,
+            detail="ransomed",
+            headers={"X-Ransom-Status": "encrypted"},
+        )
+
 @router.get("", response_model=PaginatedPatientResponse)
 def get_patients(
     skip: int = Query(0, ge=0),
@@ -18,14 +33,15 @@ def get_patients(
     condition: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
+    _check_db_available()
     patients, total = patient_service.get_patients(db, skip=skip, limit=limit, condition=condition)
-    
     return {
         "total": total,
         "page": (skip // limit) + 1,
         "size": limit,
         "data": patients
     }
+
 
 @router.get("/{patient_id}", response_model=PatientResponse)
 def get_patient(patient_id: int, db: Session = Depends(get_db)):
