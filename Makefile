@@ -39,8 +39,11 @@ reset-blue: down-blue
 
 # Full Simulation Mode (realistic multi-subnet scenario)
 up-fullsim:
-	@echo "Avvio simulazione completa (3 subnet isolate)..."
+	@echo "Avvio simulazione completa (3 subnet + Suricata IDS)..."
 	docker compose -p ransomsim-full -f infra/docker-compose.full-sim.yaml up -d --remove-orphans
+	@echo "Verifica stato Suricata..."
+	@sleep 2
+	@docker ps --filter "name=sim_suricata"
 
 down-fullsim:
 	@echo "Arresto simulazione completa..."
@@ -63,3 +66,29 @@ reset-hard:
 attacker-shell:
 	@echo "Accesso alla shell dell'attaccante..."
 	docker exec -it sim_attacker /bin/bash
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SURICATA IDS AUTOMATION
+# ─────────────────────────────────────────────────────────────────────────────
+
+suricata-logs:
+	@echo "Tailing Suricata EVE alerts (JSON)..."
+	docker exec -it sim_suricata tail -f /var/log/suricata/eve.json | grep --line-buffered '"event_type":"alert"'
+
+suricata-stats:
+	@echo "Statistiche di traffico Suricata..."
+	docker exec -it sim_suricata tail -n 50 /var/log/suricata/stats.log
+
+suricata-reload:
+	@echo "Ricaricamento regole Suricata (senza riavvio container)..."
+	docker exec -it sim_suricata kill -USR2 1
+	@echo "Regole ricaricate con successo."
+
+suricata-check-net:
+	@echo "Verifica visibilità interfacce nel namespace condiviso (router)..."
+	docker exec -it sim_suricata ip a
+	docker exec -it sim_suricata ip link show | grep promisc
+
+suricata-alerts-raw:
+	@echo "Ultime 20 rilevazioni (formato breve)..."
+	docker exec -it sim_suricata tail -n 100 /var/log/suricata/fast.log

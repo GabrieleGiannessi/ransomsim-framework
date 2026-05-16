@@ -209,13 +209,18 @@ services:
   suricata:
     image: jasonish/suricata:latest
     container_name: sim_suricata
-    network_mode: "service:api"  # vede il traffico su tutte le subnet a cui e' connessa l'API
+    # Condivide il network namespace del ROUTER — unico punto dove transita
+    # TUTTO il traffico inter-subnet (attack↔dmz↔internal).
+    # Il namespace api non vedeva il traffico agent↔caldera perché non era
+    # sul percorso di forwarding tra le due reti.
+    network_mode: "service:router"
     cap_add:
       - NET_ADMIN
       - NET_RAW
       - SYS_NICE
     environment:
-      - API_URL=http://127.0.0.1:8000
+      # Usa l'IP diretto dell'API (non localhost, siamo nel namespace del router)
+      - API_URL=http://10.10.3.10:8000
       - SURICATA_IFACE=any
       - SURICATA_POLL_INTERVAL=${SURICATA_POLL_INTERVAL:-15}
     volumes:
@@ -228,7 +233,8 @@ services:
         mode: 0755
     entrypoint: ["/bin/sh", "/entrypoint.sh"]
     depends_on:
-      - api
+      - router   # namespace condiviso — il router deve esistere prima
+      - api      # endpoint /alerts/ingest
     restart: unless-stopped
 
   

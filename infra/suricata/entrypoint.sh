@@ -25,11 +25,23 @@ fi
 mkdir -p /var/log/suricata
 
 # Avvia Suricata IN BACKGROUND
-# Se SURICATA_IFACE è "any" o non impostata, usa la config multi-interfaccia
+# Setup: siamo nel namespace del container ROUTER.
+# Il router esegue il FORWARD del traffico inter-subnet tramite iptables,
+# quindi vediamo tutti i pacchetti che attraversano le tre reti.
+# Impostiamo le interfacce in modalità promiscua per catturare anche il
+# traffico unicast non indirizzato esplicitamente a noi.
 if [ "$SURICATA_IFACE" = "any" ] || [ -z "$SURICATA_IFACE" ]; then
+    echo "[entrypoint] Enabling promiscuous mode on all interfaces..."
+    for iface in eth0 eth1 eth2; do
+        if ip link show "$iface" > /dev/null 2>&1; then
+            ip link set "$iface" promisc on && echo "[entrypoint] promisc ON: $iface" || echo "[entrypoint] WARN: could not set promisc on $iface"
+        fi
+    done
     echo "[entrypoint] Launching Suricata on ALL interfaces (from yaml config)..."
     suricata -c /etc/suricata/suricata.yaml --pidfile /var/run/suricata.pid &
 else
+    echo "[entrypoint] Enabling promiscuous mode on ${SURICATA_IFACE}..."
+    ip link set "$SURICATA_IFACE" promisc on 2>/dev/null || true
     echo "[entrypoint] Launching Suricata on specific interface ${SURICATA_IFACE}..."
     suricata -c /etc/suricata/suricata.yaml -i "$SURICATA_IFACE" --pidfile /var/run/suricata.pid &
 fi
