@@ -42,8 +42,9 @@ alert http $HOME_NET any -> any any (msg:"RANSOMSIM LATERAL MOVE curl pipe execu
 
 # GRUPPO 4: Data Exfiltration
 
-# Upload HTTP insolito verso esterno (POST di grandi payload)
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"RANSOMSIM EXFILTRATION Large HTTP POST to external host"; http.method; content:"POST"; dsize:>1000; priority:1; classtype:policy-violation; sid:9003001; rev:3;)
+# Upload HTTP insolito verso esterno (POST di grandi payload da percorsi sospetti)
+# Più specifico per evitare falsi positivi dal traffic-generator
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"RANSOMSIM EXFILTRATION Large HTTP POST to external host"; http.method; content:"POST"; http.uri; content:"/"; dsize:>1000; priority:1; classtype:policy-violation; sid:9003001; rev:4;)
 
 # DNS tunneling (query TXT di lunghezza anomala)
 alert dns any any -> any 53 (msg:"RANSOMSIM EXFILTRATION Suspicious long DNS TXT query (possible tunneling)"; dns.query; isdataat:50; classtype:policy-violation; sid:9003002; rev:2;)

@@ -25,7 +25,8 @@ var:
     ENIP_SERVER: "$HOME_NET"
 
   port-groups:
-    HTTP_PORTS: "80"
+    # HTTP_PORTS aggiornato per coprire API FastAPI (8000) e Caldera (8888)
+    HTTP_PORTS: "[80,8000,8080,8888]"
     SHELLCODE_PORTS: "!80"
     ORACLE_PORTS: 1521
     SSH_PORTS: 22
@@ -61,7 +62,10 @@ pcap:
 # Decoder / stream tracking
 stream:
   memcap: 64mb
-  checksum-validation: yes
+  # FIXBUG: checksum-validation disabilitato — in Docker il checksum offloading
+  # fa sì che i pacchetti arrivino con checksum "sbagliati" e vengano scartati
+  # silenziosamente prima che le regole vengano applicate.
+  checksum-validation: no
   inline: auto
   reassembly:
     memcap: 256mb

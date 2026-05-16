@@ -2,8 +2,9 @@
 # Suricata Entrypoint — RansomSim Blue Team
 # Avvia Suricata in modalità IDS e fa polling periodico dei log eve.json
 # per inviarli all'API del blue team come alert sulla dashboard.
-
-set -e
+#
+# NOTA: set -e è volutamente assente — grep restituisce exit code 1 quando
+# non trova corrispondenze, il che sotto set -e farebbe crashare il loop.
 
 API_URL="${API_URL:-http://api:8000}"
 LOG_FILE="/var/log/suricata/eve.json"
@@ -23,8 +24,8 @@ fi
 # Crea la directory dei log se non esiste
 mkdir -p /var/log/suricata
 
-# Avvia Suricata in background
-# Se SURICATA_IFACE è "any", usiamo la config multi-interfaccia dello yaml
+# Avvia Suricata IN BACKGROUND
+# Se SURICATA_IFACE è "any" o non impostata, usa la config multi-interfaccia
 if [ "$SURICATA_IFACE" = "any" ] || [ -z "$SURICATA_IFACE" ]; then
     echo "[entrypoint] Launching Suricata on ALL interfaces (from yaml config)..."
     suricata -c /etc/suricata/suricata.yaml --pidfile /var/run/suricata.pid &
@@ -34,7 +35,7 @@ else
 fi
 SURICATA_PID=$!
 
-# Attendi che il log file esista
+# Attendi che il log file esista (max 60s)
 echo "[entrypoint] Waiting for eve.json to be created..."
 RETRIES=0
 until [ -f "$LOG_FILE" ] || [ $RETRIES -ge 30 ]; do
@@ -49,10 +50,10 @@ else
 fi
 
 # Inizializza la posizione di lettura a fine file (legge solo i nuovi eventi)
-wc -c "$LOG_FILE" 2>/dev/null | awk '{print $1}' > "$LAST_POS_FILE" 2>/dev/null || echo "0" > "$LAST_POS_FILE"
+echo "0" > "$LAST_POS_FILE"
 
-
-# Loop di polling: legge i nuovi alert dall'eve.json e li invia all'API
+# Loop di polling IN FOREGROUND — invia nuovi alert all'API
+# Il loop gira in primo piano; Suricata gira in background con $SURICATA_PID
 while true; do
     sleep "$POLL_INTERVAL"
 
@@ -61,54 +62,55 @@ while true; do
         continue
     fi
 
-    # Leggi solo le righe nuove dall'ultima posizione
-    LAST_POS=$(cat "$LAST_POS_FILE" 2>/dev/null || echo "0")
-    CURRENT_SIZE=$(wc -c < "$LOG_FILE" 2>/dev/null || echo "0")
+    # FIX: trim degli spazi dal risultato di wc -c per evitare errori aritmetici
+    LAST_POS=$(cat "$LAST_POS_FILE" 2>/dev/null | tr -d ' ' || echo "0")
+    CURRENT_SIZE=$(wc -c < "$LOG_FILE" 2>/dev/null | tr -d ' ' || echo "0")
 
     # Se il file è stato ruotato (dimensione < ultima posizione), resetta
-    if [ "$CURRENT_SIZE" -lt "$LAST_POS" ]; then
+    if [ "$CURRENT_SIZE" -lt "$LAST_POS" ] 2>/dev/null; then
         echo "[poller] Log rotation detected, resetting position."
         LAST_POS=0
     fi
 
-    if [ "$CURRENT_SIZE" -le "$LAST_POS" ]; then
+    if [ "$CURRENT_SIZE" -le "$LAST_POS" ] 2>/dev/null; then
         # Nessun nuovo dato
         continue
     fi
 
-    # Estrai solo le nuove righe
-    NEW_LINES=$(tail -c "+$((LAST_POS + 1))" "$LOG_FILE" 2>/dev/null | head -c 65536)
+    # Estrai solo le righe nuove (max 256KB per ciclo per sicurezza)
+    NEW_LINES=$(tail -c "+$((LAST_POS + 1))" "$LOG_FILE" 2>/dev/null | head -c 262144)
 
-    # Aggiorna la posizione
+    # Aggiorna la posizione PRIMA dell'invio (evita duplicati in caso di errore)
     echo "$CURRENT_SIZE" > "$LAST_POS_FILE"
 
-    # Filtra solo gli eventi di tipo "alert" e "anomaly"
-    ALERTS=$(echo "$NEW_LINES" | grep -E '"event_type":"(alert|anomaly)"' || true)
+    # Filtra solo gli eventi di tipo "alert" — grep restituisce 1 se non trova nulla, gestito con ||
+    ALERTS=$(echo "$NEW_LINES" | grep -F '"event_type":"alert"') || ALERTS=""
 
     if [ -z "$ALERTS" ]; then
         continue
     fi
 
+    echo "[poller] Found $(echo "$ALERTS" | wc -l | tr -d ' ') new alert(s), forwarding to API..."
+
     # Invia ogni alert singolarmente all'API
     echo "$ALERTS" | while IFS= read -r line; do
-        if [ -z "$line" ]; then
-            continue
-        fi
+        [ -z "$line" ] && continue
 
         # POST verso l'endpoint /alerts/ingest dell'API blue team
         HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             -X POST \
             -H "Content-Type: application/json" \
             -d "$line" \
-            "$API_URL/alerts/ingest" 2>/dev/null || echo "000")
+            "$API_URL/alerts/ingest" 2>/dev/null) || HTTP_STATUS="000"
 
         if [ "$HTTP_STATUS" != "200" ] && [ "$HTTP_STATUS" != "201" ]; then
-            echo "[poller] WARNING: Failed to POST alert to API (HTTP $HTTP_STATUS)"
+            echo "[poller] WARNING: Failed to POST alert (HTTP $HTTP_STATUS)"
         fi
     done
 
-    echo "[poller] Processed new Suricata events at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-done &
+    echo "[poller] Cycle complete at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+done
 
-# Resta in foreground finché Suricata è in esecuzione
+# Il loop in foreground non arriverà qui finché non viene interrotto.
+# Attendi Suricata solo se il loop termina per qualche motivo.
 wait $SURICATA_PID
