@@ -1,157 +1,76 @@
-# RansomSim -- Regole Suricata per Blue Team
-# Copertura: 7 fasi attack chain "Healthcare Ransomware"
+# RansomSim -- Regole Suricata Ottimizzate (No Noise + High Visibility)
 #
 # PRIORITA':
-#   priority:1 -> HIGH  (C2, exfiltration, ransomware, initial access)
-#   priority:2 -> MEDIUM (lateral movement, brute force, persistence)
-#   priority:3 -> LOW   (reconnaissance, anomalie generali)
+#   priority:1 -> HIGH (Rosso)
+#   priority:2 -> MEDIUM (Giallo)
+#   priority:3 -> LOW (Blu)
 
 # ===========================================================================
-# FASE 1: RECONNAISSANCE -- Nmap scan, Nikto, API enumeration (priority:3)
-# Ability: recon-nmap-scan, recon-vuln-scan, discovery-enum-api
+# FASE 1: RECONNAISSANCE (LOW - Priority 3)
+# Usiamo 'threshold' per evitare di generare migliaia di alert per una scansione.
 # ===========================================================================
 
-# Nmap SYN scan -- TCP SYN ripetuti dallo stesso src verso molte porte
-alert tcp any any -> [10.10.1.0/24,10.10.2.0/24,10.10.3.0/24] any (msg:"RANSOMSIM RECON Nmap SYN scan detected"; flags:S; detection_filter: track by_src, count 30, seconds 10; priority:3; classtype:network-scan; sid:9000001; rev:4;)
+# Nmap SYN scan -- Un solo alert ogni 60s per sorgente
+alert tcp any any -> [10.10.1.0/24,10.10.2.0/24,10.10.3.0/24] any (msg:"RANSOMSIM RECON Nmap SYN scan detected"; flags:S; threshold: type both, track by_src, count 20, seconds 60; priority:3; classtype:network-scan; sid:9000001; rev:5;)
 
-# Nmap service scan verso porte note
-alert tcp any any -> [10.10.1.0/24,10.10.2.0/24,10.10.3.0/24] [22,80,443,8000,8080,8443,8888] (msg:"RANSOMSIM RECON Nmap service scan on known ports"; flags:S; detection_filter: track by_src, count 5, seconds 10; priority:3; classtype:network-scan; sid:9000002; rev:4;)
+# Nmap service scan -- Un solo alert ogni 60s
+alert tcp any any -> [10.10.1.0/24,10.10.2.0/24,10.10.3.0/24] [22,80,443,8000,8080,8443,8888] (msg:"RANSOMSIM RECON Nmap service scan"; flags:S; threshold: type both, track by_src, count 10, seconds 60; priority:3; classtype:network-scan; sid:9000002; rev:5;)
 
-# Nmap NSE script -- User-Agent caratteristico
-alert http any any -> [10.10.1.0/24,10.10.2.0/24,10.10.3.0/24] [80,8000,8080,8888] (msg:"RANSOMSIM RECON Nmap NSE script scan detected"; http.user_agent; content:"Nmap Scripting Engine"; nocase; priority:3; classtype:network-scan; sid:9000003; rev:2;)
-
-# Nikto web scanner -- UA caratteristico
-alert http any any -> [10.10.1.0/24,10.10.2.0/24,10.10.3.0/24] [80,8000,8080,8888] (msg:"RANSOMSIM RECON Nikto web scanner detected"; http.user_agent; content:"Nikto"; nocase; priority:3; classtype:web-application-attack; sid:9000004; rev:3;)
-
-# Enumerazione endpoint API -- molte GET rapide dallo stesso IP verso porta 8000
-alert http any any -> [10.10.2.0/24,10.10.3.0/24] 8000 (msg:"RANSOMSIM RECON API endpoint enumeration"; http.method; content:"GET"; detection_filter: track by_src, count 10, seconds 15; priority:3; classtype:network-scan; sid:9000005; rev:2;)
-
-# Probe su endpoint legacy/ping
-alert http any any -> [10.10.2.0/24,10.10.3.0/24] 8000 (msg:"RANSOMSIM RECON Probe on legacy ping endpoint"; http.uri; content:"/legacy/ping"; priority:3; classtype:attempted-recon; sid:9000006; rev:2;)
-
-# Probe su Swagger /docs
-alert http any any -> [10.10.2.0/24,10.10.3.0/24] 8000 (msg:"RANSOMSIM RECON Swagger docs discovery"; http.uri; content:"/docs"; priority:3; classtype:attempted-recon; sid:9000007; rev:1;)
+# Nikto/NSE User-Agents
+alert http any any -> any any (msg:"RANSOMSIM RECON Scanner User-Agent detected"; http.user_agent; content:"Nmap Scripting Engine"; nocase; threshold: type both, track by_src, count 1, seconds 60; priority:3; classtype:network-scan; sid:9000003; rev:3;)
+alert http any any -> any any (msg:"RANSOMSIM RECON Nikto web scanner"; http.user_agent; content:"Nikto"; nocase; threshold: type both, track by_src, count 1, seconds 60; priority:3; classtype:web-application-attack; sid:9000004; rev:4;)
 
 # ===========================================================================
-# FASE 2: INITIAL ACCESS -- Command injection + SSH brute force (priority:1)
-# Ability: initial-access-exploit-api, initial-access-brute-ssh
+# FASE 2: INITIAL ACCESS (HIGH - Priority 1)
 # ===========================================================================
 
-# Command injection via /legacy/ping?host=...;id;whoami
-# Use single http.uri sticky buffer + two content: keywords (both match the same buffer)
-alert http any any -> [10.10.2.0/24,10.10.3.0/24] 8000 (msg:"RANSOMSIM INITIAL ACCESS Command injection on legacy/ping whoami"; http.uri; content:"/legacy/ping"; content:"whoami"; nocase; priority:1; classtype:web-application-attack; sid:9001001; rev:4;)
+# Command Injection su legacy/ping
+alert http any any -> any 8000 (msg:"RANSOMSIM EXPLOIT Command injection on legacy/ping"; http.uri; content:"/legacy/ping"; content:"whoami"; nocase; priority:1; classtype:web-application-attack; sid:9001001; rev:5;)
+alert http any any -> any 8000 (msg:"RANSOMSIM EXPLOIT Command injection passwd dump"; http.uri; content:"/legacy/ping"; content:"passwd"; nocase; priority:1; classtype:web-application-attack; sid:9001002; rev:5;)
 
-# Command injection con dump /etc/passwd
-alert http any any -> [10.10.2.0/24,10.10.3.0/24] 8000 (msg:"RANSOMSIM INITIAL ACCESS Command injection passwd dump on legacy/ping"; http.uri; content:"/legacy/ping"; content:"passwd"; nocase; priority:1; classtype:web-application-attack; sid:9001002; rev:4;)
+# SQL Injection
+alert http any any -> any 8000 (msg:"RANSOMSIM EXPLOIT SQL injection on legacy/search"; http.uri; content:"/legacy/search"; content:"OR"; nocase; priority:1; classtype:web-application-attack; sid:9001003; rev:5;)
 
-# SQL injection via /legacy/search?q='OR 1=1--
-alert http any any -> [10.10.2.0/24,10.10.3.0/24] 8000 (msg:"RANSOMSIM INITIAL ACCESS SQL injection on legacy/search"; http.uri; content:"/legacy/search"; content:"OR"; nocase; priority:1; classtype:web-application-attack; sid:9001003; rev:4;)
-
-# SSH brute force (hydra) -- molti SYN verso porta 22
-alert tcp any any -> [10.10.2.0/24,10.10.3.0/24] 22 (msg:"RANSOMSIM INITIAL ACCESS SSH brute force attempt"; flags:S; detection_filter: track by_src, count 10, seconds 10; priority:2; classtype:attempted-user; sid:9001004; rev:3;)
+# SSH Brute Force (Priority 2)
+alert tcp any any -> any 22 (msg:"RANSOMSIM EXPLOIT SSH brute force attempt"; flags:S; threshold: type both, track by_src, count 5, seconds 60; priority:2; classtype:attempted-user; sid:9001004; rev:4;)
 
 # ===========================================================================
-# FASE 3: C2 -- Caldera Sandcat agent beaconing (priority:1)
-# Traffico: agent (10.10.1.30/10.10.3.20) <-> caldera (10.10.1.10:8888)
+# FASE 3: C2 BEACONING (HIGH - Priority 1)
 # ===========================================================================
 
-# Sandcat download del binario agent da Caldera (POST /file/download)
-alert http any any -> 10.10.1.10 8888 (msg:"RANSOMSIM C2 Sandcat agent binary download from Caldera"; http.method; content:"POST"; http.uri; content:"/file/download"; priority:1; classtype:trojan-activity; sid:9002001; rev:4;)
+# Sandcat Beacon (POST /beacon) -- Cuore del C2
+alert http any any -> any 8888 (msg:"RANSOMSIM C2 Sandcat beacon to Caldera"; http.method; content:"POST"; http.uri; content:"/beacon"; priority:1; classtype:trojan-activity; sid:9002001; rev:5;)
 
-# Sandcat beacon POST /beacon -- heartbeat dell'agente
-alert http any any -> 10.10.1.10 8888 (msg:"RANSOMSIM C2 Sandcat beacon to Caldera C2"; http.method; content:"POST"; http.uri; content:"/beacon"; priority:1; classtype:trojan-activity; sid:9002002; rev:4;)
+# Sandcat Result Submission (PUT /result)
+alert http any any -> any 8888 (msg:"RANSOMSIM C2 Sandcat result submission"; http.method; content:"PUT"; http.uri; content:"/result"; priority:1; classtype:trojan-activity; sid:9002002; rev:5;)
 
-# Sandcat invio risultato ability (PUT /result)
-alert http any any -> 10.10.1.10 8888 (msg:"RANSOMSIM C2 Sandcat ability result submission"; http.method; content:"PUT"; http.uri; content:"/result"; priority:1; classtype:trojan-activity; sid:9002003; rev:2;)
-
-# Caldera dispatch ability GET /file/download verso agent
-alert http 10.10.1.10 8888 -> any any (msg:"RANSOMSIM C2 Caldera dispatching ability to agent"; http.method; content:"GET"; http.uri; content:"/file/download"; priority:1; classtype:trojan-activity; sid:9002004; rev:2;)
-
-# Heartbeat C2 generico -- GET ripetuti verso porta 8888 (>15 in 60s)
-alert http any any -> 10.10.1.10 8888 (msg:"RANSOMSIM C2 Periodic C2 polling detected"; http.method; content:"GET"; threshold: type both, track by_src, count 15, seconds 60; priority:1; classtype:trojan-activity; sid:9002005; rev:3;)
-
-# Caldera TLS channel su 8443
-alert tls any any -> any 8443 (msg:"RANSOMSIM C2 Caldera encrypted TLS channel on 8443"; priority:1; classtype:trojan-activity; sid:9002006; rev:3;)
+# Download Agente (POST /file/download)
+alert http any any -> any 8888 (msg:"RANSOMSIM C2 Sandcat agent binary download"; http.method; content:"POST"; http.uri; content:"/file/download"; priority:1; classtype:trojan-activity; sid:9002003; rev:5;)
 
 # ===========================================================================
-# FASE 4: COLLECTION -- Dump del database pazienti (priority:1)
-# Ability: collection-dump-db
-# Traffico: agent -> GET /patients?skip=N&limit=N su porta 8000
+# FASE 4-5: DATA COLLECTION & EXFILTRATION (HIGH - Priority 1)
 # ===========================================================================
 
-# Dump paginato GET /patients
-alert http any any -> [10.10.2.0/24,10.10.3.0/24] 8000 (msg:"RANSOMSIM COLLECTION Healthcare patient data dump via API"; http.method; content:"GET"; http.uri; content:"/patients"; priority:1; classtype:policy-violation; sid:9003001; rev:4;)
+# Dump Database Pazienti
+alert http any any -> any 8000 (msg:"RANSOMSIM EXFILTRATION Healthcare data dump request"; http.method; content:"GET"; http.uri; content:"/patients"; priority:1; classtype:policy-violation; sid:9003001; rev:5;)
 
-# Dump massiccio -- molte GET /patients in rapida successione
-alert http any any -> [10.10.2.0/24,10.10.3.0/24] 8000 (msg:"RANSOMSIM COLLECTION Mass patient data exfiltration loop"; http.method; content:"GET"; http.uri; content:"/patients"; detection_filter: track by_src, count 5, seconds 30; priority:1; classtype:policy-violation; sid:9003002; rev:3;)
+# Upload Esfiltrazione (POST /file/upload)
+alert http any any -> any 8888 (msg:"RANSOMSIM EXFILTRATION Data upload to C2"; http.method; content:"POST"; http.uri; content:"/file/upload"; priority:1; classtype:policy-violation; sid:9004001; rev:5;)
 
-# Accesso DB da attack_net (10.10.1.x) -- sorgente anomala
-alert http 10.10.1.0/24 any -> [10.10.2.0/24,10.10.3.0/24] 8000 (msg:"RANSOMSIM COLLECTION Patient DB access from attack network"; http.method; content:"GET"; http.uri; content:"/patients"; priority:1; classtype:policy-violation; sid:9003003; rev:2;)
-
-# ===========================================================================
-# FASE 5: EXFILTRATION -- Upload file cifrato verso C2 (priority:1)
-# Ability: exfil-c2-channel
-# Traffico: agent -> POST /file/upload a Caldera 10.10.1.10:8888
-# ===========================================================================
-
-# Upload file verso endpoint Caldera /file/upload
-alert http any any -> 10.10.1.10 8888 (msg:"RANSOMSIM EXFILTRATION File upload to Caldera C2"; http.method; content:"POST"; http.uri; content:"/file/upload"; priority:1; classtype:policy-violation; sid:9004001; rev:3;)
-
-# Header X-Key presente (exfiltrazione con chiave AES openssl)
-alert http any any -> 10.10.1.10 8888 (msg:"RANSOMSIM EXFILTRATION Encrypted data exfiltration with AES key header"; http.header_names; content:"X-Key"; priority:1; classtype:policy-violation; sid:9004002; rev:2;)
-
-# POST multipart generico verso C2 port 8888 o 8443
-alert http any any -> 10.10.1.10 [8888,8443] (msg:"RANSOMSIM EXFILTRATION Large POST to C2 server"; http.method; content:"POST"; priority:1; classtype:policy-violation; sid:9004003; rev:2;)
-
-# Connessioni TCP verso porte C2 non standard (backdoor comuni)
-alert tcp [10.10.1.0/24,10.10.2.0/24,10.10.3.0/24] any -> !10.0.0.0/8 [4444,5555,6666,7777,9999,1234,31337] (msg:"RANSOMSIM EXFILTRATION Outbound connection to common C2 backdoor port"; flags:S; priority:1; classtype:trojan-activity; sid:9004004; rev:3;)
+# Header X-Key (Cifratura AES rilevata in transito)
+alert http any any -> any 8888 (msg:"RANSOMSIM EXFILTRATION AES Key header detected"; http.header_names; content:"X-Key"; priority:1; classtype:policy-violation; sid:9004002; rev:3;)
 
 # ===========================================================================
-# FASE 6: PERSISTENCE -- Cron backdoor beacon (priority:2)
-# Ability: persist-cron-backdoor
-# Traffico: crontab genera GET /beacon ogni 5min verso Caldera
+# FASE 7: RANSOMWARE IMPACT (HIGH - Priority 1)
 # ===========================================================================
 
-# curl beacon da internal_net (10.10.3.x) verso Caldera (pattern cron)
-alert http 10.10.3.0/24 any -> 10.10.1.10 8888 (msg:"RANSOMSIM PERSISTENCE Cron backdoor beacon from internal host"; http.method; content:"GET"; http.uri; content:"/beacon"; priority:2; classtype:trojan-activity; sid:9005001; rev:2;)
+# Segnalazione cifratura completata
+alert http any any -> any 8888 (msg:"RANSOMSIM IMPACT Ransomware encryption reported"; http.method; content:"PUT"; http.uri; content:"/result"; priority:1; classtype:trojan-activity; sid:9006001; rev:3;)
 
 # ===========================================================================
-# FASE 7: IMPACT -- Ransomware encryption result (priority:1)
-# Ability: impact-sim-encrypt
-# Traffico: agent invia PUT /result con output cifratura a Caldera
+# ANOMALIE & LATERAL MOVEMENT (MEDIUM - Priority 2)
 # ===========================================================================
 
-# PUT /result dopo esecuzione impact (risultato cifratura)
-alert http any any -> 10.10.1.10 8888 (msg:"RANSOMSIM IMPACT Ransomware execution result reported to C2"; http.method; content:"PUT"; http.uri; content:"/result"; priority:1; classtype:trojan-activity; sid:9006001; rev:2;)
-
-# ===========================================================================
-# LATERAL MOVEMENT (priority:2)
-# ===========================================================================
-
-# SSH da DMZ verso internal_net (pivot post-exploitation)
-alert tcp 10.10.2.0/24 any -> 10.10.3.0/24 22 (msg:"RANSOMSIM LATERAL MOVE SSH pivot from DMZ to internal network"; flags:S; priority:2; classtype:attempted-admin; sid:9007001; rev:3;)
-
-# SSH generico inter-subnet (rilevazione brute force secondaria)
-alert tcp [10.10.1.0/24,10.10.2.0/24,10.10.3.0/24] any -> [10.10.1.0/24,10.10.2.0/24,10.10.3.0/24] 22 (msg:"RANSOMSIM LATERAL MOVE Internal SSH connection"; flags:S; detection_filter: track by_src, count 3, seconds 10; priority:2; classtype:attempted-admin; sid:9007002; rev:3;)
-
-# SMB interno (propagazione tipo WannaCry)
-alert tcp [10.10.1.0/24,10.10.2.0/24,10.10.3.0/24] any -> [10.10.1.0/24,10.10.2.0/24,10.10.3.0/24] 445 (msg:"RANSOMSIM RANSOMWARE Internal SMB lateral movement"; flags:S; priority:1; classtype:attempted-admin; sid:9007003; rev:3;)
-
-# RDP interno sospetto
-alert tcp [10.10.1.0/24,10.10.2.0/24,10.10.3.0/24] any -> [10.10.1.0/24,10.10.2.0/24,10.10.3.0/24] 3389 (msg:"RANSOMSIM RANSOMWARE Internal RDP connection attempt"; flags:S; priority:1; classtype:attempted-admin; sid:9007004; rev:3;)
-
-# ===========================================================================
-# ANOMALIE GENERALI (priority:3)
-# ===========================================================================
-
-# Traffico DMZ -> internal (pivot/post-exploitation)
-alert tcp 10.10.2.0/24 any -> 10.10.3.0/24 any (msg:"RANSOMSIM ANOMALY Unexpected DMZ to internal network connection"; flags:S; priority:2; classtype:policy-violation; sid:9008001; rev:3;)
-
-# Accesso diretto al router/firewall (10.10.1.254)
-alert tcp any any -> 10.10.1.254 any (msg:"RANSOMSIM ANOMALY Direct connection to router firewall container"; flags:S; priority:3; classtype:policy-violation; sid:9008002; rev:3;)
-
-# ICMP flood
-alert icmp any any -> [10.10.1.0/24,10.10.2.0/24,10.10.3.0/24] any (msg:"RANSOMSIM ANOMALY ICMP flood detected"; itype:8; detection_filter: track by_src, count 50, seconds 5; priority:3; classtype:denial-of-service; sid:9008003; rev:3;)
-
-# DNS tunneling -- query anomale lunghe
-alert dns any any -> any 53 (msg:"RANSOMSIM ANOMALY Suspicious long DNS query possible tunneling"; dns.query; isdataat:50,relative; priority:2; classtype:policy-violation; sid:9008004; rev:3;)
+# SSH Pivot tra reti
+alert tcp 10.10.2.0/24 any -> 10.10.3.0/24 22 (msg:"RANSOMSIM LATERAL MOVE SSH pivot detected"; flags:S; priority:2; classtype:attempted-admin; sid:9007001; rev:4;)
+alert tcp 10.10.1.0/24 any -> 10.10.3.0/24 any (msg:"RANSOMSIM ANOMALY Attack net to Internal direct connection"; flags:S; priority:2; classtype:policy-violation; sid:9008001; rev:4;)
