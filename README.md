@@ -25,103 +25,82 @@ uv sync
 
 ---
 
-## Simulation Modes
+## Network Architecture & Topology
 
-The framework supports two simulation modes:
+The framework is deployed as a single-host, multi-container environment featuring **three isolated Docker networks** interconnected by a dedicated **Router/Firewall container**. This architecture accurately replicates a realistic healthcare enterprise network, complete with a public-facing DMZ and a protected internal segment. 
 
-| Mode | Command | Description |
-|------|---------|-------------|
-| **Split** | `make up-red` / `make up-blue` | Original two-machine setup |
-| **Full Simulation** | `make up-fullsim` | Realistic multi-subnet scenario on a single host |
-
----
-
-## Mode 1: Split Architecture (Original)
-
-Designed to run across two separate machines (Red Team on Linux, Blue Team on Windows).
-
-1. Clone the repository on **both** machines:
-```bash
-git clone https://github.com/GabrieleGiannessi/ransomsim-framework.git
-cd ransomsim-framework
-```
-
-2. Configure the environments:
-Copy the example environment file and update it with the IPs of your virtual machines.
-```bash
-cp .env.example .env
-```
-Edit `.env` and configure `CALDERA_URL` (Red Team IP) and `VITE_API_URL` (Blue Team IP). This step is mandatory for the Blue Team machine to successfully reach the C2 server, and for the attacker's browser to reach the Blue Team API.
-
-### Starting the Simulation
-
-**On the Red Team Machine (Linux):**
-This will start the MITRE Caldera C2 server.
-```bash
-make up-red
-```
-
-**On the Blue Team Machine (Windows):**
-This will start the simulated healthcare database, the FastAPI backend, the React frontend, and the target Caldera agent.
-```bash
-make up-blue
-```
-**Note**: On first boot, Caldera takes 1–3 minutes to compile the sandcat agent. The Blue Team agent container will retry automatically until the agent binary is available from the Red Team machine.
-
-### Accessing the Interfaces
-
-- **Blue Team (Hospital UI)**: Open `http://localhost:5173/` on the Windows machine to view the healthcare database.
-- **Blue Team (SOC Dashboard)**: Open `http://localhost:5173/blue-team` on the Windows machine.
-- **Red Team (Attacker Panel)**: Open `http://<BLUE_TEAM_IP>:5173/red` from the Linux machine browser to launch and monitor the attack.
-
-### Stopping the Simulation
-
-To stop the containers on their respective machines:
-```bash
-make down-red   # On the Red Team machine
-make down-blue  # On the Blue Team machine
-```
-
----
-
-## Mode 2: Full Simulation (Realistic Multi-Subnet)
-
-A single-host deployment with **three isolated Docker networks** that simulate a realistic enterprise environment with a firewall/router separating attacker, DMZ, and internal networks.
+It includes a real-time **Suricata IDS** sniffing core transit traffic and a secure **C2 DNAT Bypass** to route agent communications robustly.
 
 ### Network Architecture
 
 ```
-                        +-----------+
-                        |  ROUTER   |
-                        | (iptables)|
-                        +-----+-----+
-                              |
-            +-----------------+-----------------+
-            |                 |                 |
-    +-------+------+  +------+-------+  +------+-------+
-    | ATTACK NET   |  | DMZ NET      |  | INTERNAL NET |
-    | 10.10.1.0/24 |  | 10.10.2.0/24 |  | 10.10.3.0/24 |
-    |              |  |              |  |              |
-    | - Caldera C2 |  | - Nginx      |  | - FastAPI    |
-    | - Kali Box   |  |   Reverse    |  | - Healthcare |
-    |   (nmap,     |  |   Proxy      |  |   Database   |
-    |    hydra,    |  | - Frontend   |  |              |
-    |    nikto)    |  | - SSH Target |  |              |
-    +--------------+  +--------------+  +--------------+
+                                 +-----------------------------+
+                                 |         SIM_ROUTER          |
+                                 |   +---------------------+   |
+                                 |   |  Subnet-based       |   |
+                                 |   |  iptables Firewall  |   |
+                                 |   +----------+----------+   |
+                                 |              |              |
+                                 |   +----------v----------+   |
+                                 |   |    Suricata IDS     |   |
+                                 |   | (Shared Net Namespace)| |
+                                 |   +---------------------+   |
+                                 +--------------+--------------+
+                                                |
+                               +----------------+----------------+
+                               |                                 |
+                 +-------------v-------------+     +-------------v-------------+
+                 |        ATTACK NET         |     |          DMZ NET          |
+                 |       10.10.1.0/24        |     |       10.10.2.0/24        |
+                 +---------------------------+     +---------------------------+
+                 | - Caldera C2 (10.10.1.10) |     | - Nginx Reverse Proxy     |
+                 | - Kali Box   (10.10.1.20) |     | - Frontend UI             |
+                 +---------------------------+     | - SSH Target              |
+                                                   +-------------+-------------+
+                                                                 |
+                                                   +-------------v-------------+
+                                                   |       INTERNAL NET        |
+                                                   |       10.10.3.0/24        |
+                                                   +---------------------------+
+                                                   | - FastAPI Backend (API)   |
+                                                   | - Healthcare DB           |
+                                                   | - Sandcat C2 Agent        |
+                                                   +---------------------------+
 ```
 
-### Firewall Rules
+### Core Architecture Features
 
-The router container enforces these iptables rules:
+1. **Suricata IDS Core Gateway Placement**:
+   - The **Suricata IDS** container shares the **network namespace** of the `sim_router` (`network_mode: "service:router"`).
+   - This provides the IDS with absolute, transparent visibility into all three network subnets (Attack, DMZ, and Internal) at the exact point of routing.
+   - It captures all scanning, exploitation, and C2 exfiltration attempts. Alerts are outputted to `/var/log/suricata/eve.json` and ingested in real time by the FastAPI backend to populate the SOC dashboard.
 
-| Source | Destination | Allowed | Blocked |
-|--------|------------|---------|---------|
-| Attack Net | DMZ | Ports 80, 443 | Everything else |
-| Attack Net | Internal | — | All traffic |
-| DMZ | Internal | Port 8000 (API) | Everything else |
-| Internal | DMZ | Established connections | — |
+2. **Robust Subnet-Based Firewall (Docker-Safe)**:
+   - Docker interface names (`eth0`, `eth1`, `eth2`) can shuffle dynamically across container recreation.
+   - To prevent firewall rule mismatches, the router uses **100% subnet-based `iptables` rules** mapped to exact IP ranges (`10.10.1.0/24`, `10.10.2.0/24`, `10.10.3.0/24`), ensuring absolute durability and robust network security.
 
-The attacker **cannot** reach the internal network directly — they must first compromise a DMZ service and pivot.
+3. **C2 Routing Bypass via Router DNAT**:
+   - Docker implements strict inter-bridge isolation rules on the host (`DOCKER-ISOLATION-STAGE-2`), dropping Layer 2 packets that attempt to cross different user-defined bridges (e.g. from `internal_net` directly to `attack_net`).
+   - To bypass this without compromising network isolation, the router implements **Destination NAT (DNAT / Port Forwarding)** on its internal IP:
+     - The Sandcat agent connects to **`http://10.10.3.254:8888`** (the router gateway).
+     - The router DNAT rule transparently rewrites the destination to **`10.10.1.10:8888`** (Caldera C2).
+     - This forces all C2 packets to be routed locally through the gateway (allowing Suricata to analyze them) and prevents host-level drops.
+
+---
+
+### Firewall Rules (Subnet-Based)
+
+The router container enforces the following strict security boundaries:
+
+| Source Subnet | Destination Subnet | Protocol & Ports | Action | Description |
+|---------------|-------------------|------------------|--------|-------------|
+| **Attack Net** (`10.10.1.0/24`) | **DMZ Net** (`10.10.2.0/24`) | TCP 80, 443 | **ACCEPT** | Allows attacker to access public web services. |
+| **Attack Net** (`10.10.1.0/24`) | **Internal Net** (`10.10.3.0/24`) | Any | **DROP** | Direct attacker access to internal network is completely blocked. |
+| **DMZ Net** (`10.10.2.0/24`) | **Internal Net** (`10.10.3.0/24`) | TCP 8000 (API) | **ACCEPT** | Allows Nginx/Frontend to query the healthcare API backend. |
+| **Internal Net** (`10.10.3.0/24`) | **Attack Net** (`10.10.1.0/24`) | TCP 8888 (C2) | **ACCEPT** | Allows Sandcat Agent to establish C2 channel to Caldera. |
+| **Internal Net** (`10.10.3.0/24`) | **Attack Net** (`10.10.1.0/24`) | Any | **DROP** | Blocks any other outbound internal traffic. |
+
+---
 
 ### Kill Chain (MITRE ATT&CK)
 
@@ -160,9 +139,9 @@ make up-fullsim
 
 ### Accessing the Interfaces
 
-- **Hospital UI**: `http://localhost/` (through the Nginx reverse proxy)
-- **SOC Dashboard**: `http://localhost/blue-team`
-- **Red Team Panel**: `http://localhost/red`
+- **Hospital UI**: `http://localhost:80/` (through the Nginx reverse proxy)
+- **SOC Dashboard**: `http://localhost:80/blue-team`
+- **Red Team Panel**: `http://localhost:80/red`
 - **Caldera C2**: `http://localhost:8888`
 - **Attacker Shell**: `make attacker-shell`
 
