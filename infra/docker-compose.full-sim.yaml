@@ -50,28 +50,33 @@ services:
         apk add --no-cache iptables &&
         iptables -P FORWARD DROP &&
 
-        # attack_net <-> dmz_net: HTTP/HTTPS (attacker browse to frontend)
-        iptables -A FORWARD -i eth0 -o eth1 -p tcp --dport 80  -j ACCEPT &&
-        iptables -A FORWARD -i eth0 -o eth1 -p tcp --dport 443 -j ACCEPT &&
-        iptables -A FORWARD -i eth1 -o eth0 -m state --state ESTABLISHED,RELATED -j ACCEPT &&
+        # Port forwarding: traffico da internal_net verso il C2 su 10.10.3.254:8888 viene girato a 10.10.1.10:8888
+        iptables -t nat -A PREROUTING -d 10.10.3.254 -p tcp --dport 8888 -j DNAT --to-destination 10.10.1.10:8888 &&
 
-        # dmz_net <-> internal_net: API traffic
-        iptables -A FORWARD -i eth1 -o eth2 -p tcp --dport 8000 -j ACCEPT &&
-        iptables -A FORWARD -i eth2 -o eth1 -m state --state ESTABLISHED,RELATED -j ACCEPT &&
+        # NAT / MASQUERADE per permettere il routing di ritorno senza configurare route statiche sugli host di destinazione
+        # Mascheriamo tutto il traffico che va verso attack_net (10.10.1.0/24) e dmz_net (10.10.2.0/24)
+        iptables -t nat -A POSTROUTING -d 10.10.1.0/24 -j MASQUERADE &&
+        iptables -t nat -A POSTROUTING -d 10.10.2.0/24 -j MASQUERADE &&
 
-        # internal_net -> attack_net: C2 channel (Sandcat agent -> Caldera)
+        # attack_net (10.10.1.0/24) -> dmz_net (10.10.2.0/24): HTTP/HTTPS (attacker browse to frontend)
+        iptables -A FORWARD -s 10.10.1.0/24 -d 10.10.2.0/24 -p tcp --dport 80  -j ACCEPT &&
+        iptables -A FORWARD -s 10.10.1.0/24 -d 10.10.2.0/24 -p tcp --dport 443 -j ACCEPT &&
+        iptables -A FORWARD -d 10.10.1.0/24 -s 10.10.2.0/24 -m state --state ESTABLISHED,RELATED -j ACCEPT &&
+
+        # dmz_net (10.10.2.0/24) -> internal_net (10.10.3.0/24): API traffic
+        iptables -A FORWARD -s 10.10.2.0/24 -d 10.10.3.0/24 -p tcp --dport 8000 -j ACCEPT &&
+        iptables -A FORWARD -d 10.10.2.0/24 -s 10.10.3.0/24 -m state --state ESTABLISHED,RELATED -j ACCEPT &&
+
+        # internal_net (10.10.3.0/24) -> attack_net (10.10.1.0/24): C2 channel (Sandcat agent -> Caldera)
         # Questo e' il traffico critico che Suricata deve vedere:
         # beacon POST /beacon, risultati PUT /result, upload POST /file/upload
-        iptables -A FORWARD -i eth2 -o eth0 -p tcp --dport 8888 -j ACCEPT &&
-        iptables -A FORWARD -i eth0 -o eth2 -m state --state ESTABLISHED,RELATED -j ACCEPT &&
-
-        # internal_net -> attack_net: download agente al bootstrap (porta 8888)
-        # (gia' coperto dalla regola sopra)
+        iptables -A FORWARD -s 10.10.3.0/24 -d 10.10.1.0/24 -p tcp --dport 8888 -j ACCEPT &&
+        iptables -A FORWARD -d 10.10.3.0/24 -s 10.10.1.0/24 -m state --state ESTABLISHED,RELATED -j ACCEPT &&
 
         # Blocco esplicito: attack_net non puo' raggiungere internal_net direttamente
-        iptables -A FORWARD -i eth0 -o eth2 -j DROP &&
+        iptables -A FORWARD -s 10.10.1.0/24 -d 10.10.3.0/24 -j DROP &&
 
-        echo 'Firewall rules applied — C2 channel internal->attack ALLOWED' &&
+        echo 'Firewall rules and NAT applied — C2 channel internal->attack ALLOWED (subnet-based)' &&
         tail -f /dev/null
       "
     restart: unless-stopped
@@ -203,7 +208,7 @@ services:
     cap_add:
       - NET_ADMIN
     environment:
-      - CALDERA_URL=http://10.10.1.10:8888
+      - CALDERA_URL=http://10.10.3.254:8888
     volumes:
       - ../:/app
     command: |
